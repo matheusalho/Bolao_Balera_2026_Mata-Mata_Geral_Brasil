@@ -302,7 +302,7 @@
       : (READ_ENDPOINT ? '<button class="btn ghost" onclick="MM.atualizar()">↻ Atualizar</button>' : '');
     view.innerHTML = '<div class="card"><div class="hd"><div><h2>Jogos e Resultados</h2><div class="muted">' + head + '</div></div>' + actions + '</div>' +
       '<p id="pubmsg" class="note" style="display:none"></p>' +
-      '<div class="note">Os pontos contam apenas para os jogos com placar preenchido.</div>' +
+      '<div class="note">' + (JOGOS.length === 1 ? 'Os pontos contam apenas para o jogo com placar preenchido.' : 'Os pontos contam apenas para os jogos com placar preenchido.') + '</div>' +
       '<div class="games">' + cards + '</div></div>';
   }
 
