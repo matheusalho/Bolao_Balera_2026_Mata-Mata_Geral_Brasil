@@ -1,7 +1,12 @@
-/* Bolão Balera 2026 — Mata-Mata · App de Ranking (Geral)
+/* Bolão Balera 2026 — Mata-Mata · App de Ranking
    JS puro. Dados em window.CHAVEAMENTO e window.ELENCOS (dados-mm.js).
-   Pontuação (fixa por time no jogo):
-     Placar exato 10 · Vencedor/Empate 5 · Artilheiros (nomes) 10 · Artilheiros na ordem 15 (vale o maior). */
+   Pontuação — versão COMPLETA (Geral / Amaro):
+     Placar exato 10 · Vencedor/Empate 5 · Artilheiros (nomes) 10 · Artilheiros na ordem 15 (vale o maior).
+   Pontuação — versão BRASIL (window.BRASIL_ONLY = true) · regras simplificadas:
+     1) Placar exato: 10 pts.
+     2) SÓ para quem cravou o placar: +5 por NOME de artilheiro acertado (qualquer time, qualquer ordem).
+     3) Desempate: nomes dos artilheiros de cada time na ORDEM dos gols. Persistindo empate → sorteio
+        do time de marketing (sem previsão no código). */
 (function () {
   'use strict';
   var IS_AMARO = window.APP_VARIANT === 'amaro';
@@ -40,20 +45,32 @@
     if (!g || !hasResult(r) || g.home === undefined || g.home === '' || g.away === undefined || g.away === '') return { pts: 0, type: 'none' };
     var gh = +g.home, ga = +g.away, rh = +r.home, ra = +r.away;
     if (gh === rh && ga === ra) return { pts: 10, type: 'exact' };
-    if (Math.sign(gh - ga) === Math.sign(rh - ra)) return { pts: 5, type: 'winner' };
+    if (!BRASIL_ONLY && Math.sign(gh - ga) === Math.sign(rh - ra)) return { pts: 5, type: 'winner' }; // Brasil: só placar exato pontua
     return { pts: 0, type: 'miss' };
   }
-  // compara lista de artilheiros (de um time) do palpite vs real
-  function scorerScore(guess, real) {
+  // compara lista de artilheiros (de um time) do palpite vs real.
+  // Sempre devolve nameHits (acertos de nome, qualquer ordem, por multiconjunto) e orderHits (acertos
+  // posição-a-posição, usados no desempate). exactPlacar: na versão BRASIL os pontos de artilheiro só
+  // contam se o participante cravou o placar daquele jogo.
+  function scorerScore(guess, real, exactPlacar) {
     var r = (real || []).map(norm).filter(function (x) { return x; });
-    if (r.length === 0) return { pts: 0, type: 'none' };            // time não marcou: sem pontos de artilheiro
+    if (r.length === 0) return { pts: 0, type: 'none', nameHits: 0, orderHits: 0 }; // time não marcou
     var g = (guess || []).map(norm).filter(function (x) { return x; });
-    if (g.length === 0) return { pts: 0, type: 'empty' };
+    if (g.length === 0) return { pts: 0, type: 'empty', nameHits: 0, orderHits: 0 };
+    var pool = r.slice(), nameHits = 0;
+    for (var k = 0; k < g.length; k++) { var ix = pool.indexOf(g[k]); if (ix >= 0) { nameHits++; pool.splice(ix, 1); } }
+    var orderHits = 0, lim = Math.min(g.length, r.length);
+    for (var i = 0; i < lim; i++) if (g[i] === r[i]) orderHits++;
+    if (BRASIL_ONLY) {
+      if (!exactPlacar) return { pts: 0, type: 'locked', nameHits: nameHits, orderHits: orderHits }; // sem placar exato → não pontua
+      return { pts: nameHits * 5, type: nameHits ? 'names' : 'miss', nameHits: nameHits, orderHits: orderHits };
+    }
+    // ----- versão completa (regras antigas) -----
     var orderMatch = g.length === r.length && g.every(function (x, i) { return x === r[i]; });
-    if (orderMatch) return { pts: 15, type: 'order' };
+    if (orderMatch) return { pts: 15, type: 'order', nameHits: nameHits, orderHits: orderHits };
     var sameSet = g.length === r.length && g.slice().sort().join('|') === r.slice().sort().join('|');
-    if (sameSet) return { pts: 10, type: 'names' };
-    return { pts: 0, type: 'miss' };
+    if (sameSet) return { pts: 10, type: 'names', nameHits: nameHits, orderHits: orderHits };
+    return { pts: 0, type: 'miss', nameHits: nameHits, orderHits: orderHits };
   }
 
   function scoreParticipant(p) {
@@ -65,11 +82,13 @@
       processed++;
       var g = (p.guesses || {})[j.id] || {};
       var ps = placarScore(g, r);
-      var hs = scorerScore(g.homeScorers, r.homeScorers);
-      var as = scorerScore(g.awayScorers, r.awayScorers);
+      var exactP = ps.type === 'exact';
+      var hs = scorerScore(g.homeScorers, r.homeScorers, exactP);
+      var as = scorerScore(g.awayScorers, r.awayScorers, exactP);
       placarPts += ps.pts; scorerPts += hs.pts + as.pts;
-      if (ps.type === 'exact') exact++; if (ps.type === 'winner') winner++;
-      if (hs.type === 'order') ordersHit++; if (as.type === 'order') ordersHit++;
+      if (exactP) exact++; if (ps.type === 'winner') winner++;
+      if (BRASIL_ONLY) ordersHit += hs.orderHits + as.orderHits; // desempate Brasil: acertos de ordem (por gol)
+      else { if (hs.type === 'order') ordersHit++; if (as.type === 'order') ordersHit++; }
       if (hs.type === 'names') namesHit++; if (as.type === 'names') namesHit++;
       tot += ps.pts + hs.pts + as.pts;
       detail.push({ j: j, g: g, r: r, ps: ps, hs: hs, as: as });
@@ -79,6 +98,20 @@
 
   function ranking() {
     var arr = participants.map(scoreParticipant);
+    if (BRASIL_ONLY) {
+      // Brasil: total → desempate por artilheiros na ordem. Persistindo empate, é sorteio do marketing.
+      arr.sort(function (a, b) { return b.total - a.total || b.ordersHit - a.ordersHit || a.name.localeCompare(b.name); });
+      var pos = 0, n = 0, pk = null;
+      arr.forEach(function (x) {
+        n++; var key = x.total + '|' + x.ordersHit;
+        if (key !== pk) { pos = n; pk = key; } // mesmo total E mesma ordem → mesma posição (empate p/ sorteio)
+        x.pos = pos;
+      });
+      var counts = {};
+      arr.forEach(function (x) { counts[x.pos] = (counts[x.pos] || 0) + 1; });
+      arr.forEach(function (x) { x.tie = counts[x.pos] > 1; }); // empate real (mais de um na mesma posição)
+      return arr;
+    }
     arr.sort(function (a, b) {
       return b.total - a.total || b.exact - a.exact || b.ordersHit - a.ordersHit || b.namesHit - a.namesHit || b.winner - a.winner || a.name.localeCompare(b.name);
     });
@@ -122,8 +155,9 @@
     var medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
     var rows = filtered.map(function (x) {
       var cls = x.pos <= 3 ? ' class="p' + x.pos + '"' : '';
+      var tieMark = x.tie ? ' <span title="Empate — desempate por sorteio do marketing" style="color:var(--ouro);font-weight:900">=</span>' : '';
       return '<tr' + cls + ' onclick="MM.detalhe(\'' + esc(x.cpf || x.name) + '\')">' +
-        '<td class="rankpos">' + (medals[x.pos] ? medals[x.pos] + ' ' : '') + x.pos + 'º</td>' +
+        '<td class="rankpos">' + (medals[x.pos] ? medals[x.pos] + ' ' : '') + x.pos + 'º' + tieMark + '</td>' +
         '<td class="nome">' + esc(x.name) + '</td>' +
         '<td>' + x.exact + '</td>' +
         '<td>' + x.placarPts + '</td>' +
@@ -139,8 +173,13 @@
       '<div class="hd"><div><h2>' + (BRASIL_ONLY ? 'Ranking — Jogos do Brasil' : 'Ranking Geral') + '</h2><div class="muted">' + sub + '</div></div>' +
       '<div class="hd-actions">' + refreshBtn + '<input class="search" placeholder="Buscar participante..." value="' + esc(search) + '" oninput="MM.busca(this.value)"></div></div>' +
       '<div class="tablewrap"><table><thead><tr>' +
-      '<th>Pos</th><th class="nome">Participante</th><th title="Placares exatos (cravadas)">Cravadas</th><th title="Pontos de placar (10/5)">Placar</th><th title="Pontos de artilheiros (10/15)">Artilheiros</th><th>Total</th>' +
+      '<th>Pos</th><th class="nome">Participante</th><th title="Placares exatos (cravadas)">Cravadas</th>' +
+      (BRASIL_ONLY
+        ? '<th title="Placar exato = 10 pts">Placar</th><th title="5 pts por nome de artilheiro acertado — só conta para quem cravou o placar">Artilheiros</th>'
+        : '<th title="Pontos de placar (10/5)">Placar</th><th title="Pontos de artilheiros (10/15)">Artilheiros</th>') +
+      '<th>Total</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      (BRASIL_ONLY ? '<div class="note">Desempate: nomes dos artilheiros de cada time na <b>ordem</b> dos gols. Persistindo o empate (=), o vencedor é definido por <b>sorteio do time de marketing</b>.</div>' : '') +
       (IS_AMARO ? '<div class="hd" style="border-top:1px solid var(--linha);border-bottom:0"><div class="muted">Exportar ranking no layout da Intranet</div><button class="btn ouro" onclick="MM.exportar()">Exportar Excel</button></div>' : '') +
       '</div>';
   }
@@ -154,11 +193,20 @@
     var arr = participants.map(function (p) {
       var g = (p.guesses || {})[gameId] || {};
       var ps = placarScore(g, r);
-      var hs = scorerScore(g.homeScorers, r ? r.homeScorers : null);
-      var as = scorerScore(g.awayScorers, r ? r.awayScorers : null);
-      return { name: p.name, cpf: p.cpf, g: g, placarPts: ps.pts, scorerPts: hs.pts + as.pts, total: ps.pts + hs.pts + as.pts };
-    }).sort(function (a, b) { return b.total - a.total || b.placarPts - a.placarPts || a.name.localeCompare(b.name); });
-    arr.forEach(function (x, i) { x.pos = i + 1; });
+      var exactP = ps.type === 'exact';
+      var hs = scorerScore(g.homeScorers, r ? r.homeScorers : null, exactP);
+      var as = scorerScore(g.awayScorers, r ? r.awayScorers : null, exactP);
+      return { name: p.name, cpf: p.cpf, g: g, placarPts: ps.pts, scorerPts: hs.pts + as.pts, orderHits: hs.orderHits + as.orderHits, total: ps.pts + hs.pts + as.pts };
+    });
+    arr.sort(function (a, b) { return b.total - a.total || (BRASIL_ONLY ? b.orderHits - a.orderHits : b.placarPts - a.placarPts) || a.name.localeCompare(b.name); });
+    if (BRASIL_ONLY) {
+      var pos = 0, n = 0, pk = null;
+      arr.forEach(function (x) { n++; var key = x.total + '|' + x.orderHits; if (key !== pk) { pos = n; pk = key; } x.pos = pos; });
+      var counts = {}; arr.forEach(function (x) { counts[x.pos] = (counts[x.pos] || 0) + 1; });
+      arr.forEach(function (x) { x.tie = counts[x.pos] > 1; });
+    } else {
+      arr.forEach(function (x, i) { x.pos = i + 1; });
+    }
     return arr;
   }
   function renderRankingBrasil() {
@@ -178,8 +226,9 @@
     var rows = filtered.map(function (x) {
       var cls = (hasR && x.pos <= 3) ? ' class="p' + x.pos + '"' : '';
       var pal = (x.g && x.g.home !== undefined && x.g.home !== '') ? esc(x.g.home + 'x' + x.g.away) : '—';
+      var tieMark = (hasR && x.tie) ? ' <span title="Empate — desempate por sorteio do marketing" style="color:var(--ouro);font-weight:900">=</span>' : '';
       return '<tr' + cls + ' onclick="MM.detalhe(\'' + esc(x.cpf || x.name) + '\')">' +
-        '<td class="rankpos">' + ((hasR && medals[x.pos]) ? medals[x.pos] + ' ' : '') + x.pos + 'º</td>' +
+        '<td class="rankpos">' + ((hasR && medals[x.pos]) ? medals[x.pos] + ' ' : '') + x.pos + 'º' + tieMark + '</td>' +
         '<td class="nome">' + esc(x.name) + '</td>' +
         '<td>' + pal + '</td>' +
         '<td>' + x.placarPts + '</td>' +
@@ -197,7 +246,12 @@
       '<div class="hd"><div><h2>Ranking — Jogos do Brasil</h2><div class="muted">' + sub + '</div></div>' +
       '<div class="hd-actions">' + (READ_ENDPOINT ? '<button class="btn ghost" onclick="MM.atualizar()">↻ Atualizar</button>' : '') + '<input class="search" placeholder="Buscar participante..." value="' + esc(search) + '" oninput="MM.busca(this.value)"></div></div>' +
       '<div class="filters"><label for="brsel">Jogo do Brasil:</label><select id="brsel" onchange="MM.selBrasil(this.value)">' + options + '</select></div>' +
-      '<div class="tablewrap"><table><thead><tr><th>Pos</th><th class="nome">Participante</th><th title="Palpite de placar">Palpite</th><th title="Pontos de placar (10/5)">Placar</th><th title="Pontos de artilheiros (10/15)">Artilheiros</th><th>Total</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      '<div class="tablewrap"><table><thead><tr><th>Pos</th><th class="nome">Participante</th><th title="Palpite de placar">Palpite</th>' +
+      (BRASIL_ONLY
+        ? '<th title="Placar exato = 10 pts">Placar</th><th title="5 pts por nome de artilheiro acertado — só conta para quem cravou o placar">Artilheiros</th>'
+        : '<th title="Pontos de placar (10/5)">Placar</th><th title="Pontos de artilheiros (10/15)">Artilheiros</th>') +
+      '<th>Total</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      (BRASIL_ONLY ? '<div class="note">Desempate: artilheiros de cada time na <b>ordem</b> dos gols. Persistindo o empate (=), decide o <b>sorteio do marketing</b>.</div>' : '') +
       '</div>';
   }
 
@@ -246,6 +300,15 @@
   }
 
   function renderRegras() {
+    if (BRASIL_ONLY) {
+      view.innerHTML = '<div class="card"><div class="hd"><h2>Regras — Jogos do Brasil</h2></div><div class="rules">' +
+        '<div class="rule"><span class="pts">10 pts</span><h3>Placar exato</h3><div class="muted">Acertou o placar exato da partida.</div></div>' +
+        '<div class="rule"><span class="pts">5 pts</span><h3>Nome de artilheiro</h3><div class="muted"><b>Só vale para quem cravou o placar exato.</b> A cada nome de jogador que fez gol que você acertar — de <b>qualquer time</b>, em <b>qualquer ordem</b> — são 5 pontos.</div></div>' +
+        '<div class="rule"><span class="pts">desempate</span><h3>Artilheiros na ordem</h3><div class="muted">Havendo empate em pontos, fica à frente quem acertou os nomes dos artilheiros de cada time na <b>ordem</b> em que os gols foram feitos.</div></div>' +
+        '<div class="muted">Permanecendo o empate, o vencedor é definido por <b>sorteio do time de marketing</b> (sem previsão no aplicativo).</div>' +
+        '</div></div>';
+      return;
+    }
     view.innerHTML = '<div class="card"><div class="hd"><h2>Regras — Mata-Mata</h2></div><div class="rules">' +
       '<div class="rule"><span class="pts">10 pts</span><h3>Placar exato</h3><div class="muted">Acertou o placar exato do jogo.</div></div>' +
       '<div class="rule"><span class="pts">5 pts</span><h3>Vencedor ou empate</h3><div class="muted">Acertou o lado vencedor (ou o empate), mas não o placar exato.</div></div>' +
@@ -286,26 +349,28 @@
       var r = realResults[j.id];
       var hasR = hasResult(r);
       var ps = placarScore(g, r);
-      var hs = scorerScore(g.homeScorers, hasR ? r.homeScorers : null);
-      var as = scorerScore(g.awayScorers, hasR ? r.awayScorers : null);
+      var exactP = ps.type === 'exact';
+      var hs = scorerScore(g.homeScorers, hasR ? r.homeScorers : null, exactP);
+      var as = scorerScore(g.awayScorers, hasR ? r.awayScorers : null, exactP);
       var gamePts = ps.pts + hs.pts + as.pts;
       var hasPalpite = g.home !== undefined && g.home !== '' && g.home !== null;
       var scoreTxt = hasPalpite ? (g.home + '<small>x</small>' + g.away) : '<small>sem palpite</small>';
       var ptsBadge = hasR ? ('<span class="dpts' + (gamePts ? '' : ' zero') + '">+' + gamePts + '</span>') : '<span class="dpts wait">a jogar</span>';
       var realLine = hasR ? ('<div class="dreal">Resultado: <b>' + esc(j.mandante) + ' ' + r.home + ' x ' + r.away + ' ' + esc(j.visitante) + '</b>' + (stType(ps.type) ? ' · ' + stType(ps.type) : ' · placar 0') + '</div>') : '';
+      var lockNote = (BRASIL_ONLY && hasR && !exactP && (hs.type === 'locked' || as.type === 'locked')) ? '<div style="font-size:.78rem;color:#94a3b8;margin:0 0 6px">🔒 Sem o placar exato, os artilheiros não pontuam neste jogo.</div>' : '';
       return '<div class="dgame' + (j.brasil ? ' br' : '') + '">' +
         '<div class="dgh"><span class="gnum">J' + j.id + '</span>' +
         '<span class="dteam">' + esc(j.mandante) + '</span>' +
         '<span class="dscore ' + (hasR ? ps.type : '') + '">' + scoreTxt + '</span>' +
         '<span class="dteam">' + esc(j.visitante) + '</span>' +
         (j.brasil ? '<span class="badge b-brasil">BR</span>' : '') + ptsBadge + '</div>' +
-        realLine +
+        realLine + lockNote +
         '<div class="dscorers">' +
         '<div class="dcol' + ((hs.type === 'order' || hs.type === 'names') ? ' hit' : '') + '"><h5>Gols ' + esc(j.mandante) + (hs.pts ? ' · +' + hs.pts : '') + '</h5>' + lista(g.homeScorers) + '</div>' +
         '<div class="dcol' + ((as.type === 'order' || as.type === 'names') ? ' hit' : '') + '"><h5>Gols ' + esc(j.visitante) + (as.pts ? ' · +' + as.pts : '') + '</h5>' + lista(g.awayScorers) + '</div>' +
         '</div></div>';
     }).join('');
-    var sum = '<div class="dsum"><span class="chip tot">' + s.total + ' pts</span><span class="chip">Placar ' + s.placarPts + '</span><span class="chip">Artilheiros ' + s.scorerPts + '</span><span class="chip">Cravadas ' + s.exact + '</span></div>';
+    var sum = '<div class="dsum"><span class="chip tot">' + s.total + ' pts</span><span class="chip">Placar ' + s.placarPts + '</span><span class="chip">Artilheiros ' + s.scorerPts + '</span>' + (BRASIL_ONLY ? '<span class="chip" title="Acertos de artilheiro na ordem (desempate)">Ordem ' + s.ordersHit + '</span>' : '') + '<span class="chip">Cravadas ' + s.exact + '</span></div>';
     var m = document.createElement('div'); m.className = 'modal-bg'; m.onclick = function () { m.remove(); };
     m.innerHTML = '<div class="modal modal-detalhe" onclick="event.stopPropagation()">' +
       '<div class="dhead"><h3>' + esc(p.name) + '</h3><div class="dhead-btns"><button class="btn ciano dshare" onclick="MM.compartilhar()">↗ Compartilhar</button><button class="dclose" aria-label="Fechar" onclick="this.closest(\'.modal-bg\').remove()">✕</button></div></div>' +
