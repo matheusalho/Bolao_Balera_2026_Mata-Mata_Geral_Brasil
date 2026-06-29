@@ -596,4 +596,19 @@
   }
   render();
   if (READ_ENDPOINT) autoLoad(false);
+
+  // ---------- auto-atualização do ranking (a cada 2 min) ----------
+  // Mantém o ranking "ao vivo" sem o participante clicar em Atualizar.
+  // Só atualiza nas telas de visualização (Ranking / Por jogo) e nunca enquanto
+  // alguém digita (busca) ou o Amaro edita resultados — para não atrapalhar.
+  if (READ_ENDPOINT) {
+    setInterval(function () {
+      if (document.hidden) return;                 // aba em segundo plano
+      if (autoState === 'loading') return;         // já está atualizando
+      if (activeTab !== 'ranking' && activeTab !== 'brasil') return; // só nas telas de ranking
+      var ae = document.activeElement;
+      if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return; // usuário digitando/selecionando
+      autoLoad(false);
+    }, 120000);
+  }
 })();
