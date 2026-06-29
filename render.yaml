@@ -2,7 +2,7 @@
 # Render ▸ New ▸ Blueprint ▸ conectar este repositório ▸ Apply.
 services:
   - type: web
-    name: bolao-balera-geral-brasil
+    name: bolao-balera-geral
     runtime: static
     buildCommand: "echo site estatico sem build"
     staticPublishPath: .
