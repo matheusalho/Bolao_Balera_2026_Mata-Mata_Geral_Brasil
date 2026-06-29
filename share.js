@@ -41,13 +41,14 @@ window.Share = (function () {
 
   function drawCard(fmt, data) {
     var L = LAYOUTS[fmt], W = L.W, H = L.H, pad = L.pad;
+    var ACC = window.BRASIL_ONLY ? '#009c3b' : '#00b4ff'; // acento "brasilidade" no card do jogo do Brasil
     var c = document.createElement('canvas'); c.width = W; c.height = H;
     var x = c.getContext('2d');
     // fundo + acentos
     x.fillStyle = '#06080c'; x.fillRect(0, 0, W, H);
     x.fillStyle = 'rgba(0,180,255,0.10)'; x.beginPath(); x.arc(W + 100, 120, 360, 0, 7); x.fill();
     x.fillStyle = 'rgba(255,235,0,0.09)'; x.beginPath(); x.moveTo(0, 0); x.lineTo(330, 0); x.lineTo(0, 330); x.closePath(); x.fill();
-    x.fillStyle = '#00b4ff'; x.fillRect(0, 0, W, 10);
+    x.fillStyle = ACC; x.fillRect(0, 0, W, 10);
 
     // cabeçalho
     var hy = pad + 6;
@@ -56,18 +57,18 @@ window.Share = (function () {
     x.textAlign = 'left'; x.textBaseline = 'alphabetic';
     x.fillStyle = '#fff'; x.font = '900 32px ' + FONT; x.fillText('BALERA', pad + 78, hy + 26);
     x.fillStyle = '#00b4ff'; x.font = '700 15px ' + FONT; x.fillText('A D V O G A D O S', pad + 80, hy + 52);
-    x.fillStyle = '#00b4ff'; x.font = '900 20px ' + FONT; x.textAlign = 'right'; x.fillText('BOLÃO COPA 2026', W - pad, hy + 22);
+    x.fillStyle = ACC; x.font = '900 20px ' + FONT; x.textAlign = 'right'; x.fillText('BOLÃO COPA 2026', W - pad, hy + 22);
     x.font = '800 16px ' + FONT; x.fillStyle = '#8aa0b5'; x.fillText(FASE.toUpperCase(), W - pad, hy + 48); x.textAlign = 'left';
 
     // título (só story)
     var y;
     if (L.big) {
-      x.fillStyle = '#cfe8ff'; x.font = '800 38px ' + FONT; x.fillText('MEUS PALPITES', pad, 250);
+      x.fillStyle = '#cfe8ff'; x.font = '800 38px ' + FONT; x.fillText(window.BRASIL_ONLY ? 'MEU PALPITE' : 'MEUS PALPITES', pad, 250);
       x.fillStyle = '#fff'; x.font = '900 130px ' + FONT; x.fillText('MATA-MATA', pad - 4, 370);
       x.fillStyle = '#ffeb00'; x.fillRect(pad, 398, 280, 12);
       y = 470;
     } else {
-      x.fillStyle = '#cfe8ff'; x.font = '800 26px ' + FONT; x.fillText('MEUS PALPITES · MATA-MATA', pad, 150); y = 184;
+      x.fillStyle = '#cfe8ff'; x.font = '800 26px ' + FONT; x.fillText((window.BRASIL_ONLY ? 'MEU PALPITE' : 'MEUS PALPITES') + ' · MATA-MATA', pad, 150); y = 184;
     }
 
     // nome + ranking
@@ -77,13 +78,13 @@ window.Share = (function () {
       var pillTxt = data.pos + 'º LUGAR · ' + data.total + ' PTS';
       x.font = '900 ' + (L.big ? 28 : 24) + 'px ' + FONT; var pw = x.measureText(pillTxt).width + 44;
       var py = y - (L.big ? 6 : 4), ph = L.big ? 56 : 48;
-      x.fillStyle = '#00b4ff'; rr(x, W - pad - pw, py, pw, ph, ph / 2); x.fill();
+      x.fillStyle = ACC; rr(x, W - pad - pw, py, pw, ph, ph / 2); x.fill();
       x.fillStyle = '#04263a'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(pillTxt, W - pad - pw / 2, py + ph / 2); x.textAlign = 'left'; x.textBaseline = 'alphabetic';
     }
 
     // título da lista
     x.fillStyle = '#8aa0b5'; x.font = '900 ' + (L.big ? 24 : 20) + 'px ' + FONT;
-    x.fillText(window.BRASIL_ONLY ? 'PALPITES · JOGOS DO BRASIL' : 'TODOS OS PALPITES', pad, L.gamesTop - 26);
+    x.fillText(window.BRASIL_ONLY ? 'PALPITE · JOGO DO BRASIL' : 'TODOS OS PALPITES', pad, L.gamesTop - 26);
 
     // jogos
     var perCol = Math.ceil(JOGOS.length / L.cols);
@@ -98,7 +99,7 @@ window.Share = (function () {
 
     // rodapé
     var fy = H - (L.big ? 150 : 132);
-    x.fillStyle = '#00b4ff'; x.fillRect(pad, fy, W - 2 * pad, 4);
+    x.fillStyle = ACC; x.fillRect(pad, fy, W - 2 * pad, 4);
     x.textAlign = 'center';
     x.fillStyle = '#fff'; x.font = '900 ' + (L.big ? 28 : 24) + 'px ' + FONT;
     x.fillText('INOVA · SIMPLIFICA · SUPERA', W / 2, fy + 46);
@@ -106,7 +107,7 @@ window.Share = (function () {
     x.fillStyle = '#ffeb00'; rr(x, bx, by, bw, bh, bh / 2); x.fill();
     x.fillStyle = '#000'; x.font = '900 ' + (L.big ? 28 : 24) + 'px ' + FONT; x.textBaseline = 'middle';
     x.fillText('FAÇA O SEU PALPITE!', W / 2, by + bh / 2);
-    x.textBaseline = 'alphabetic'; x.fillStyle = '#00b4ff'; x.font = '700 ' + (L.big ? 24 : 20) + 'px ' + FONT;
+    x.textBaseline = 'alphabetic'; x.fillStyle = ACC; x.font = '700 ' + (L.big ? 24 : 20) + 'px ' + FONT;
     x.fillText(URL_LABEL, W / 2, by + bh + (L.big ? 40 : 34)); x.textAlign = 'left';
 
     return c;

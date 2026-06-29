@@ -14,6 +14,8 @@
   var JOGOS = (window.CHAVEAMENTO && window.CHAVEAMENTO.jogos) || [];
   var ELENCOS = window.ELENCOS || {};
   var GOL_CONTRA = '(gol contra)';
+  // bandeira do Brasil em SVG inline (renderiza igual em qualquer sistema, inclusive Windows)
+  var FLAG_SVG = '<svg viewBox="0 0 28 20" width="20" height="14" aria-hidden="true" style="vertical-align:-3px;border-radius:2px;box-shadow:0 0 0 1.5px rgba(255,255,255,.85);margin-right:5px"><rect width="28" height="20" fill="#009c3b"/><path d="M14 2 L26 10 L14 18 L2 10 Z" fill="#ffdf00"/><circle cx="14" cy="10" r="4.2" fill="#002776"/></svg>';
 
   var LS_RES = 'mm_realResults';
   var LS_PART = 'mm_participants';
@@ -165,12 +167,14 @@
         '<td><span class="pill tot">' + x.total + '</span></td>' +
         '</tr>';
     }).join('');
-    var sub = participants.length + ' participantes · ' + finished + '/' + JOGOS.length + ' jogos com resultado'
+    var pWord = participants.length === 1 ? 'participante' : 'participantes';
+    var jWord = JOGOS.length === 1 ? 'jogo com resultado' : 'jogos com resultado';
+    var sub = participants.length + ' ' + pWord + ' · ' + finished + '/' + JOGOS.length + ' ' + jWord
       + (lastUpdated ? ' · atualizado ' + fmtUpdated() : '')
       + (autoState === 'loading' ? ' <span class="loadingdot">• atualizando…</span>' : '');
     view.innerHTML =
       '<div class="card">' +
-      '<div class="hd"><div><h2>' + (BRASIL_ONLY ? 'Ranking — Jogos do Brasil' : 'Ranking Geral') + '</h2><div class="muted">' + sub + '</div></div>' +
+      '<div class="hd"><div><h2>' + (BRASIL_ONLY ? 'Ranking — Jogo do Brasil' : 'Ranking Geral') + '</h2><div class="muted">' + sub + '</div></div>' +
       '<div class="hd-actions">' + refreshBtn + '<input class="search" placeholder="Buscar participante..." value="' + esc(search) + '" oninput="MM.busca(this.value)"></div></div>' +
       '<div class="tablewrap"><table><thead><tr>' +
       '<th>Pos</th><th class="nome">Participante</th><th title="Placares exatos (cravadas)">Cravadas</th>' +
@@ -240,12 +244,15 @@
       var lbl = g.mandante + ' x ' + g.visitante + (g.dataHora ? ' - ' + g.dataHora : '');
       return '<option value="' + g.id + '"' + (g.id === brGameId ? ' selected' : '') + '>' + esc(lbl) + '</option>';
     }).join('');
-    var sub = (hasR ? 'Resultado oficial: ' + esc(j.mandante + ' ' + r.home + ' x ' + r.away + ' ' + j.visitante) : 'Aguardando o resultado do jogo') + ' · ' + participants.length + ' participantes';
+    var sub = (hasR ? 'Resultado oficial: ' + esc(j.mandante + ' ' + r.home + ' x ' + r.away + ' ' + j.visitante) : 'Aguardando o resultado do jogo') + ' · ' + participants.length + (participants.length === 1 ? ' participante' : ' participantes');
+    var selBlock = games.length > 1
+      ? '<div class="filters"><label for="brsel">Jogo do Brasil:</label><select id="brsel" onchange="MM.selBrasil(this.value)">' + options + '</select></div>'
+      : '<div class="filters single"><div class="bgame">' + FLAG_SVG + esc(j.mandante + ' x ' + j.visitante) + (j.dataHora ? ' <span class="bgame-dt">' + esc(j.dataHora) + '</span>' : '') + '</div></div>';
     view.innerHTML =
       '<div class="card">' +
-      '<div class="hd"><div><h2>Ranking — Jogos do Brasil</h2><div class="muted">' + sub + '</div></div>' +
+      '<div class="hd"><div><h2>Ranking — Jogo do Brasil</h2><div class="muted">' + sub + '</div></div>' +
       '<div class="hd-actions">' + (READ_ENDPOINT ? '<button class="btn ghost" onclick="MM.atualizar()">↻ Atualizar</button>' : '') + '<input class="search" placeholder="Buscar participante..." value="' + esc(search) + '" oninput="MM.busca(this.value)"></div></div>' +
-      '<div class="filters"><label for="brsel">Jogo do Brasil:</label><select id="brsel" onchange="MM.selBrasil(this.value)">' + options + '</select></div>' +
+      selBlock +
       '<div class="tablewrap"><table><thead><tr><th>Pos</th><th class="nome">Participante</th><th title="Palpite de placar">Palpite</th>' +
       (BRASIL_ONLY
         ? '<th title="Placar exato = 10 pts">Placar</th><th title="5 pts por nome de artilheiro acertado — só conta para quem cravou o placar">Artilheiros</th>'
@@ -301,7 +308,7 @@
 
   function renderRegras() {
     if (BRASIL_ONLY) {
-      view.innerHTML = '<div class="card"><div class="hd"><h2>Regras — Jogos do Brasil</h2></div><div class="rules">' +
+      view.innerHTML = '<div class="card"><div class="hd"><h2>Regras — Jogo do Brasil</h2></div><div class="rules">' +
         '<div class="rule"><span class="pts">10 pts</span><h3>Placar exato</h3><div class="muted">Acertou o placar exato da partida.</div></div>' +
         '<div class="rule"><span class="pts">5 pts</span><h3>Nome de artilheiro</h3><div class="muted"><b>Só vale para quem cravou o placar exato.</b> A cada nome de jogador que fez gol que você acertar — de <b>qualquer time</b>, em <b>qualquer ordem</b> — são 5 pontos.</div></div>' +
         '<div class="rule"><span class="pts">desempate</span><h3>Artilheiros na ordem</h3><div class="muted">Havendo empate em pontos, fica à frente quem acertou os nomes dos artilheiros de cada time na <b>ordem</b> em que os gols foram feitos.</div></div>' +
@@ -574,13 +581,14 @@
     document.title = 'Bolão BALERA — Mata-Mata 2026 · Ranking (Amaro / Intranet)';
   }
   if (BRASIL_ONLY) {
-    var _hb = document.querySelector('header h1'); if (_hb) _hb.textContent = 'Jogos do Brasil' + (IS_AMARO ? ' · Exportação' : '');
+    document.body.classList.add('brasil-theme');
+    var _hb = document.querySelector('header h1'); if (_hb) _hb.innerHTML = FLAG_SVG + 'Jogo do Brasil' + (IS_AMARO ? ' · Exportação' : '');
     var _sb = document.querySelector('header .sub'); if (_sb) _sb.textContent = 'Bolão Copa 2026' + (IS_AMARO ? ' · Amaro' : '');
     document.querySelectorAll('#tabs button').forEach(function (b) {
       if (b.dataset.tab === 'ranking') b.textContent = 'Ranking';
       if (b.dataset.tab === 'brasil') b.textContent = 'Por jogo';
     });
-    document.title = 'Bolão BALERA — Jogos do Brasil' + (IS_AMARO ? ' (Amaro)' : '');
+    document.title = 'Bolão BALERA — Jogo do Brasil' + (IS_AMARO ? ' (Amaro)' : '');
   }
   render();
   if (READ_ENDPOINT) autoLoad(false);
