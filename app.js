@@ -300,7 +300,7 @@
     var actions = IS_AMARO
       ? '<button class="btn ciano" onclick="MM.publicarResultados()">Publicar resultados</button>'
       : (READ_ENDPOINT ? '<button class="btn ghost" onclick="MM.atualizar()">↻ Atualizar</button>' : '');
-    view.innerHTML = '<div class="card"><div class="hd"><div><h2>Jogos e Resultados</h2><div class="muted">' + head + '</div></div>' + actions + '</div>' +
+    view.innerHTML = '<div class="card jogos-card"><div class="hd"><div><h2>Jogos e Resultados</h2><div class="muted">' + head + '</div></div>' + actions + '</div>' +
       '<p id="pubmsg" class="note" style="display:none"></p>' +
       '<div class="note">' + (JOGOS.length === 1 ? 'Os pontos contam apenas para o jogo com placar preenchido.' : 'Os pontos contam apenas para os jogos com placar preenchido.') + '</div>' +
       '<div class="games">' + cards + '</div></div>';
@@ -576,6 +576,7 @@
   });
 
   if (IS_AMARO) {
+    document.body.classList.add('amaro');
     var _h1 = document.querySelector('header h1'); if (_h1) _h1.textContent = 'Mata-Mata · Ranking + Exportação';
     var _sub = document.querySelector('header .sub'); if (_sub) _sub.textContent = 'Bolão Copa 2026 · Amaro';
     document.title = 'Bolão BALERA — Mata-Mata 2026 · Ranking (Amaro / Intranet)';
