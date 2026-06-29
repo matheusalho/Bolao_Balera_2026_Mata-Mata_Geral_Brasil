@@ -11,12 +11,10 @@ window.Share = (function () {
   var PALPITES_URL = window.PALPITES_URL || 'https://matheusalho.github.io/Palpites_Mata-Mata/';
   var URL_LABEL = window.SHARE_URL_LABEL || 'bolao.balera.com.br';
   var FONT = "'Segoe UI', Arial, sans-serif";
-  // Logo REAL do Balera (a mesma da topbar). crossOrigin='anonymous' permite desenhar no
-  // canvas e exportar (toDataURL/toBlob) sem "tainting" — o CDN i0.wp.com envia CORS no resize padrão.
-  var IMG_ICON = new Image(); IMG_ICON.crossOrigin = 'anonymous';
-  IMG_ICON.src = 'https://i0.wp.com/dev.balera.com.br/wp-content/uploads/2024/09/balera_home_icon.webp?resize=90%2C115&ssl=1';
-  var IMG_NOME = new Image(); IMG_NOME.crossOrigin = 'anonymous';
-  IMG_NOME.src = 'https://i0.wp.com/balera.com.br/wp-content/uploads/2024/09/balera_home_nome.webp?resize=342%2C66&ssl=1';
+  // Logo oficial do Balera (arquivo balera_logo_novo.png) embutida como data URI:
+  // o card fica 100% autossuficiente (sem CDN) e exporta sem CORS-taint.
+  var IMG_ICON = new Image();
+  IMG_ICON.src = 'data:image/png;base64,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';
   function imgReady(im) { return !!(im && im.complete && im.naturalWidth > 0); }
 
   var LAYOUTS = {
@@ -138,10 +136,11 @@ window.Share = (function () {
     var hy = pad + 12;
     var icoH = big ? 96 : 80, icoW = icoH * (90 / 115);
     if (imgReady(IMG_ICON)) x.drawImage(IMG_ICON, pad, hy, icoW, icoH);
-    var nomeH = big ? 38 : 32, nomeW = nomeH * (342 / 66), nx = pad + icoW + 22, ny = hy + (big ? 10 : 8);
-    if (imgReady(IMG_NOME)) x.drawImage(IMG_NOME, nx, ny, nomeW, nomeH);
-    x.fillStyle = '#00b4ff'; x.font = '700 ' + (big ? 15 : 13) + 'px ' + FONT; x.textAlign = 'left'; x.textBaseline = 'alphabetic';
-    x.fillText('A D V O G A D O S', nx + 3, ny + nomeH + (big ? 24 : 20));
+    var nx = pad + icoW + 24;
+    x.fillStyle = '#fff'; x.font = '900 ' + (big ? 46 : 38) + 'px ' + FONT; x.textAlign = 'left'; x.textBaseline = 'alphabetic';
+    x.fillText('BALERA', nx, hy + (big ? 52 : 46));
+    x.fillStyle = '#00b4ff'; x.font = '700 ' + (big ? 16 : 14) + 'px ' + FONT;
+    x.fillText('A D V O G A D O S', nx + 3, hy + (big ? 80 : 68));
     x.textAlign = 'right';
     x.fillStyle = '#ffdf00'; x.font = '900 ' + (big ? 22 : 18) + 'px ' + FONT; x.fillText('BOLÃO COPA 2026', W - pad, hy + (big ? 26 : 22));
     x.fillStyle = '#8aa0b5'; x.font = '800 ' + (big ? 16 : 14) + 'px ' + FONT; x.fillText(FASE.toUpperCase(), W - pad, hy + (big ? 56 : 46));
@@ -237,7 +236,7 @@ window.Share = (function () {
     }
     render();
     // redesenha quando a logo do Balera terminar de carregar (caso ainda não esteja pronta)
-    [IMG_ICON, IMG_NOME].forEach(function (im) { if (!imgReady(im)) im.addEventListener('load', render, { once: true }); });
+    if (!imgReady(IMG_ICON)) IMG_ICON.addEventListener('load', render, { once: true });
     bg.querySelectorAll('.share-fmt button').forEach(function (b) {
       b.onclick = function () { fmt = b.dataset.f; bg.querySelectorAll('.share-fmt button').forEach(function (z) { z.classList.toggle('active', z === b); }); render(); };
     });
