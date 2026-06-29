@@ -39,6 +39,75 @@ window.Share = (function () {
     x.textAlign = 'left'; x.textBaseline = 'alphabetic';
   }
 
+  // ----- versão BRASIL: bloco detalhado por jogo (placar + artilheiros na ordem, por time) -----
+  function bsz(L) {
+    return L.big
+      ? { team: 34, sc: 46, name: 27, line: 48, head: 118, colh: 22, idx: 15, gap: 22, off: 94 }
+      : { team: 26, sc: 34, name: 21, line: 40, head: 92, colh: 18, idx: 12, gap: 18, off: 72 };
+  }
+  function brasilGameHeight(g, L) {
+    var s = bsz(L);
+    var home = (g.homeScorers || []).filter(function (v) { return v; });
+    var away = (g.awayScorers || []).filter(function (v) { return v; });
+    var rows = Math.max(home.length, away.length, 1);
+    return s.head + 46 + rows * s.line + 22;
+  }
+  function drawBrasilGame(x, gx, gy, gw, j, g, L) {
+    var s = bsz(L);
+    var has = g && g.home !== undefined && g.home !== '' && g.home != null;
+    var home = (g.homeScorers || []).filter(function (v) { return v; });
+    var away = (g.awayScorers || []).filter(function (v) { return v; });
+    var rows = Math.max(home.length, away.length, 1);
+    var h = s.head + 46 + rows * s.line + 22;
+    var cx = gx + gw / 2;
+    // painel
+    x.fillStyle = 'rgba(255,255,255,0.05)'; rr(x, gx, gy, gw, h, 18); x.fill();
+    x.fillStyle = '#009c3b'; x.fillRect(gx, gy, 7, h);
+    // selo J{id}
+    x.textBaseline = 'middle'; x.textAlign = 'center';
+    x.fillStyle = '#ffeb00'; rr(x, gx + 28, gy + 24, 62, 32, 8); x.fill();
+    x.fillStyle = '#000'; x.font = '900 19px ' + FONT; x.fillText('J' + j.id, gx + 59, gy + 41);
+    // confronto + placar
+    var my = gy + s.head / 2 + 6;
+    x.font = '800 ' + s.team + 'px ' + FONT; x.fillStyle = '#fff';
+    x.textAlign = 'right'; x.fillText(trunc(x, j.mandante, gw / 2 - s.off - 12), cx - s.off, my);
+    x.textAlign = 'left'; x.fillText(trunc(x, j.visitante, gw / 2 - s.off - 12), cx + s.off, my);
+    x.textAlign = 'center'; x.font = '900 ' + s.sc + 'px ' + FONT; x.fillStyle = '#ffeb00';
+    x.fillText(has ? (g.home + ' x ' + g.away) : '– x –', cx, my);
+    // divisória horizontal
+    x.strokeStyle = 'rgba(255,255,255,0.13)'; x.lineWidth = 2;
+    x.beginPath(); x.moveTo(gx + 26, gy + s.head - 2); x.lineTo(gx + gw - 26, gy + s.head - 2); x.stroke();
+    // colunas de artilheiros
+    var leftX = gx + 40, rightX = cx + 28;
+    var leftW = cx - 30 - leftX, rightW = gx + gw - 26 - rightX;
+    var hdrY = gy + s.head + 14;
+    x.textBaseline = 'alphabetic'; x.textAlign = 'left'; x.font = '900 ' + s.colh + 'px ' + FONT; x.fillStyle = '#8aa0b5';
+    x.fillText(trunc(x, 'GOLS ' + (j.mandante || '').toUpperCase(), leftW), leftX, hdrY);
+    x.fillText(trunc(x, 'GOLS ' + (j.visitante || '').toUpperCase(), rightW), rightX, hdrY);
+    // divisória vertical entre colunas
+    x.beginPath(); x.moveTo(cx, gy + s.head + 4); x.lineTo(cx, gy + h - 14); x.stroke();
+    function drawList(list, colX, colW) {
+      if (!list.length) {
+        x.textBaseline = 'middle'; x.font = 'italic ' + (s.name - 3) + 'px ' + FONT; x.fillStyle = '#5b6b7d'; x.textAlign = 'left';
+        x.fillText('— sem gols —', colX, hdrY + 22 + s.line / 2);
+        x.textBaseline = 'alphabetic'; return;
+      }
+      for (var i = 0; i < list.length; i++) {
+        var ly = hdrY + 24 + i * s.line + s.line / 2;
+        x.textBaseline = 'middle';
+        x.fillStyle = '#009c3b'; x.beginPath(); x.arc(colX + s.idx, ly, s.idx, 0, 7); x.fill();
+        x.fillStyle = '#fff'; x.font = '900 ' + (s.idx + 2) + 'px ' + FONT; x.textAlign = 'center'; x.fillText('' + (i + 1), colX + s.idx, ly + 1);
+        x.fillStyle = '#e8eef5'; x.font = '700 ' + s.name + 'px ' + FONT; x.textAlign = 'left';
+        x.fillText(trunc(x, list[i], colW - (s.idx * 2 + 14)), colX + s.idx * 2 + 12, ly);
+      }
+      x.textBaseline = 'alphabetic';
+    }
+    drawList(home, leftX, leftW);
+    drawList(away, rightX, rightW);
+    x.textAlign = 'left'; x.textBaseline = 'alphabetic';
+    return h;
+  }
+
   function drawCard(fmt, data) {
     var L = LAYOUTS[fmt], W = L.W, H = L.H, pad = L.pad;
     var ACC = window.BRASIL_ONLY ? '#009c3b' : '#00b4ff'; // acento "brasilidade" no card do jogo do Brasil
@@ -82,20 +151,36 @@ window.Share = (function () {
       x.fillStyle = '#04263a'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(pillTxt, W - pad - pw / 2, py + ph / 2); x.textAlign = 'left'; x.textBaseline = 'alphabetic';
     }
 
-    // título da lista
-    x.fillStyle = '#8aa0b5'; x.font = '900 ' + (L.big ? 24 : 20) + 'px ' + FONT;
-    x.fillText(window.BRASIL_ONLY ? 'PALPITE · JOGO DO BRASIL' : 'TODOS OS PALPITES', pad, L.gamesTop - 26);
-
-    // jogos
-    var perCol = Math.ceil(JOGOS.length / L.cols);
-    var gap = 20;
-    var colW = (W - 2 * pad - (L.cols - 1) * gap) / L.cols;
-    JOGOS.forEach(function (j, i) {
-      var col = Math.floor(i / perCol), row = i % perCol;
-      var gx = pad + col * (colW + gap);
-      var gy = L.gamesTop + row * L.rowH;
-      drawRow(x, gx, gy, colW, L.rowH, j, (data.guesses || {})[j.id] || {}, L.fs);
-    });
+    if (window.BRASIL_ONLY) {
+      // versão Brasil: placar + artilheiros (na ordem) de cada time, centralizado
+      var bgap = bsz(L).gap;
+      var hs = JOGOS.map(function (j) { return brasilGameHeight((data.guesses || {})[j.id] || {}, L); });
+      var totalH = hs.reduce(function (a, b) { return a + b; }, 0) + bgap * Math.max(0, JOGOS.length - 1);
+      var footerY = H - (L.big ? 150 : 132);
+      var areaTop = y + (L.big ? 80 : 60), areaBot = footerY - 24, titleGap = 46;
+      var startY = areaTop + Math.max(0, (areaBot - areaTop - titleGap - totalH) / 2) + titleGap;
+      x.fillStyle = '#8aa0b5'; x.font = '900 ' + (L.big ? 24 : 20) + 'px ' + FONT; x.textAlign = 'left';
+      x.fillText('PALPITE · JOGO DO BRASIL', pad, startY - 18);
+      var gyy = startY;
+      JOGOS.forEach(function (j, i) {
+        drawBrasilGame(x, pad, gyy, W - 2 * pad, j, (data.guesses || {})[j.id] || {}, L);
+        gyy += hs[i] + bgap;
+      });
+    } else {
+      // título da lista
+      x.fillStyle = '#8aa0b5'; x.font = '900 ' + (L.big ? 24 : 20) + 'px ' + FONT; x.textAlign = 'left';
+      x.fillText('TODOS OS PALPITES', pad, L.gamesTop - 26);
+      // jogos
+      var perCol = Math.ceil(JOGOS.length / L.cols);
+      var gap = 20;
+      var colW = (W - 2 * pad - (L.cols - 1) * gap) / L.cols;
+      JOGOS.forEach(function (j, i) {
+        var col = Math.floor(i / perCol), row = i % perCol;
+        var gx = pad + col * (colW + gap);
+        var gy = L.gamesTop + row * L.rowH;
+        drawRow(x, gx, gy, colW, L.rowH, j, (data.guesses || {})[j.id] || {}, L.fs);
+      });
+    }
 
     // rodapé
     var fy = H - (L.big ? 150 : 132);
