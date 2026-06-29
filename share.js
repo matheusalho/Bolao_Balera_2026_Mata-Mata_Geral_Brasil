@@ -11,6 +11,13 @@ window.Share = (function () {
   var PALPITES_URL = window.PALPITES_URL || 'https://matheusalho.github.io/Palpites_Mata-Mata/';
   var URL_LABEL = window.SHARE_URL_LABEL || 'bolao.balera.com.br';
   var FONT = "'Segoe UI', Arial, sans-serif";
+  // Logo REAL do Balera (a mesma da topbar). crossOrigin='anonymous' permite desenhar no
+  // canvas e exportar (toDataURL/toBlob) sem "tainting" — o CDN i0.wp.com envia CORS no resize padrão.
+  var IMG_ICON = new Image(); IMG_ICON.crossOrigin = 'anonymous';
+  IMG_ICON.src = 'https://i0.wp.com/dev.balera.com.br/wp-content/uploads/2024/09/balera_home_icon.webp?resize=90%2C115&ssl=1';
+  var IMG_NOME = new Image(); IMG_NOME.crossOrigin = 'anonymous';
+  IMG_NOME.src = 'https://i0.wp.com/balera.com.br/wp-content/uploads/2024/09/balera_home_nome.webp?resize=342%2C66&ssl=1';
+  function imgReady(im) { return !!(im && im.complete && im.naturalWidth > 0); }
 
   var LAYOUTS = {
     story: { W: 1080, H: 1920, pad: 64, cols: 1, rowH: 74, gamesTop: 612, fs: 31, big: true },
@@ -110,54 +117,54 @@ window.Share = (function () {
 
   function drawCard(fmt, data) {
     var L = LAYOUTS[fmt], W = L.W, H = L.H, pad = L.pad;
-    var ACC = window.BRASIL_ONLY ? '#009c3b' : '#00b4ff'; // acento "brasilidade" no card do jogo do Brasil
+    var big = L.big;
     var c = document.createElement('canvas'); c.width = W; c.height = H;
     var x = c.getContext('2d');
-    // fundo + acentos
-    x.fillStyle = '#06080c'; x.fillRect(0, 0, W, H);
-    x.fillStyle = 'rgba(0,180,255,0.10)'; x.beginPath(); x.arc(W + 100, 120, 360, 0, 7); x.fill();
-    x.fillStyle = 'rgba(255,235,0,0.09)'; x.beginPath(); x.moveTo(0, 0); x.lineTo(330, 0); x.lineTo(0, 330); x.closePath(); x.fill();
-    x.fillStyle = ACC; x.fillRect(0, 0, W, 10);
+    // ----- fundo escuro premium + brilhos nas cores do Brasil -----
+    var bgGrad = x.createLinearGradient(0, 0, 0, H);
+    bgGrad.addColorStop(0, '#0a120e'); bgGrad.addColorStop(0.5, '#070a0e'); bgGrad.addColorStop(1, '#0a0e14');
+    x.fillStyle = bgGrad; x.fillRect(0, 0, W, H);
+    function glow(gx, gy, gr, col) { var g = x.createRadialGradient(gx, gy, 0, gx, gy, gr); g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, W, H); }
+    glow(W * 0.95, H * 0.08, W * 0.62, 'rgba(0,160,60,0.20)');   // verde (topo-direita)
+    glow(W * 0.04, H * 0.93, W * 0.60, 'rgba(0,45,130,0.22)');   // azul (base-esquerda)
+    glow(W * 0.10, H * 0.05, W * 0.36, 'rgba(255,223,0,0.07)');  // amarelo (topo-esquerda)
+    // ----- faixa tricolor (Brasil) no topo -----
+    var t3 = W / 3;
+    x.fillStyle = '#009c3b'; x.fillRect(0, 0, t3, 12);
+    x.fillStyle = '#ffdf00'; x.fillRect(t3, 0, t3, 12);
+    x.fillStyle = '#002776'; x.fillRect(2 * t3, 0, W - 2 * t3, 12);
 
-    // cabeçalho
-    var hy = pad + 6;
-    x.fillStyle = '#ffeb00'; rr(x, pad, hy, 62, 62, 10); x.fill();
-    x.fillStyle = '#000'; x.font = '900 44px ' + FONT; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('B', pad + 31, hy + 33);
-    x.textAlign = 'left'; x.textBaseline = 'alphabetic';
-    x.fillStyle = '#fff'; x.font = '900 32px ' + FONT; x.fillText('BALERA', pad + 78, hy + 26);
-    x.fillStyle = '#00b4ff'; x.font = '700 15px ' + FONT; x.fillText('A D V O G A D O S', pad + 80, hy + 52);
-    x.fillStyle = ACC; x.font = '900 20px ' + FONT; x.textAlign = 'right'; x.fillText('BOLÃO COPA 2026', W - pad, hy + 22);
-    x.font = '800 16px ' + FONT; x.fillStyle = '#8aa0b5'; x.fillText(FASE.toUpperCase(), W - pad, hy + 48); x.textAlign = 'left';
+    // ----- cabeçalho: logo REAL do Balera (esq) + bolão (dir) -----
+    var hy = pad + 12;
+    var icoH = big ? 96 : 80, icoW = icoH * (90 / 115);
+    if (imgReady(IMG_ICON)) x.drawImage(IMG_ICON, pad, hy, icoW, icoH);
+    var nomeH = big ? 38 : 32, nomeW = nomeH * (342 / 66), nx = pad + icoW + 22, ny = hy + (big ? 10 : 8);
+    if (imgReady(IMG_NOME)) x.drawImage(IMG_NOME, nx, ny, nomeW, nomeH);
+    x.fillStyle = '#00b4ff'; x.font = '700 ' + (big ? 15 : 13) + 'px ' + FONT; x.textAlign = 'left'; x.textBaseline = 'alphabetic';
+    x.fillText('A D V O G A D O S', nx + 3, ny + nomeH + (big ? 24 : 20));
+    x.textAlign = 'right';
+    x.fillStyle = '#ffdf00'; x.font = '900 ' + (big ? 22 : 18) + 'px ' + FONT; x.fillText('BOLÃO COPA 2026', W - pad, hy + (big ? 26 : 22));
+    x.fillStyle = '#8aa0b5'; x.font = '800 ' + (big ? 16 : 14) + 'px ' + FONT; x.fillText(FASE.toUpperCase(), W - pad, hy + (big ? 56 : 46));
+    x.textAlign = 'left';
 
-    // título (só story)
-    var y;
-    if (L.big) {
-      x.fillStyle = '#cfe8ff'; x.font = '800 38px ' + FONT; x.fillText(window.BRASIL_ONLY ? 'MEU PALPITE' : 'MEUS PALPITES', pad, 250);
-      x.fillStyle = '#fff'; x.font = '900 130px ' + FONT; x.fillText('MATA-MATA', pad - 4, 370);
-      x.fillStyle = '#ffeb00'; x.fillRect(pad, 398, 280, 12);
-      y = 470;
-    } else {
-      x.fillStyle = '#cfe8ff'; x.font = '800 26px ' + FONT; x.fillText((window.BRASIL_ONLY ? 'MEU PALPITE' : 'MEUS PALPITES') + ' · MATA-MATA', pad, 150); y = 184;
-    }
-
-    // nome + ranking
-    x.fillStyle = '#fff'; x.font = '900 ' + (L.big ? 56 : 44) + 'px ' + FONT;
-    x.fillText(trunc(x, data.name, W - 2 * pad - (data.pos ? 320 : 0)), pad, y + (L.big ? 40 : 34));
-    if (data.pos) {
-      var pillTxt = data.pos + 'º LUGAR · ' + data.total + ' PTS';
-      x.font = '900 ' + (L.big ? 28 : 24) + 'px ' + FONT; var pw = x.measureText(pillTxt).width + 44;
-      var py = y - (L.big ? 6 : 4), ph = L.big ? 56 : 48;
-      x.fillStyle = ACC; rr(x, W - pad - pw, py, pw, ph, ph / 2); x.fill();
-      x.fillStyle = '#04263a'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(pillTxt, W - pad - pw / 2, py + ph / 2); x.textAlign = 'left'; x.textBaseline = 'alphabetic';
-    }
+    // ----- título + nome do participante (sem ranking) -----
+    var ty = big ? 256 : 178;
+    x.fillStyle = '#3ec46e'; x.font = '900 ' + (big ? 30 : 23) + 'px ' + FONT;
+    x.fillText('MEU PALPITE', pad, ty);
+    x.fillStyle = '#fff'; x.font = '900 ' + (big ? 72 : 50) + 'px ' + FONT;
+    x.fillText(trunc(x, data.name, W - 2 * pad), pad, ty + (big ? 80 : 58));
+    var uy = ty + (big ? 102 : 74), uw = big ? 130 : 96, uh = big ? 9 : 7;
+    x.fillStyle = '#009c3b'; x.fillRect(pad, uy, uw, uh);
+    x.fillStyle = '#ffdf00'; x.fillRect(pad + uw, uy, uw, uh);
+    var y = ty + (big ? 110 : 80);
 
     if (window.BRASIL_ONLY) {
       // versão Brasil: placar + artilheiros (na ordem) de cada time, centralizado
       var bgap = bsz(L).gap;
       var hs = JOGOS.map(function (j) { return brasilGameHeight((data.guesses || {})[j.id] || {}, L); });
       var totalH = hs.reduce(function (a, b) { return a + b; }, 0) + bgap * Math.max(0, JOGOS.length - 1);
-      var footerY = H - (L.big ? 150 : 132);
-      var areaTop = y + (L.big ? 80 : 60), areaBot = footerY - 24, titleGap = 46;
+      var footerY = H - (L.big ? 215 : 175);
+      var areaTop = y + (L.big ? 30 : 22), areaBot = footerY - 24, titleGap = 46;
       var startY = areaTop + Math.max(0, (areaBot - areaTop - titleGap - totalH) / 2) + titleGap;
       x.fillStyle = '#8aa0b5'; x.font = '900 ' + (L.big ? 24 : 20) + 'px ' + FONT; x.textAlign = 'left';
       x.fillText('PALPITE · JOGO DO BRASIL', pad, startY - 18);
@@ -183,16 +190,19 @@ window.Share = (function () {
     }
 
     // rodapé
-    var fy = H - (L.big ? 150 : 132);
-    x.fillStyle = ACC; x.fillRect(pad, fy, W - 2 * pad, 4);
+    var fy = H - (L.big ? 215 : 175);
+    var ft = (W - 2 * pad) / 3;
+    x.fillStyle = '#009c3b'; x.fillRect(pad, fy, ft, 5);
+    x.fillStyle = '#ffdf00'; x.fillRect(pad + ft, fy, ft, 5);
+    x.fillStyle = '#002776'; x.fillRect(pad + 2 * ft, fy, (W - 2 * pad) - 2 * ft, 5);
     x.textAlign = 'center';
-    x.fillStyle = '#fff'; x.font = '900 ' + (L.big ? 28 : 24) + 'px ' + FONT;
-    x.fillText('INOVA · SIMPLIFICA · SUPERA', W / 2, fy + 46);
-    var bw = L.big ? 420 : 380, bh = L.big ? 58 : 52, bx = W / 2 - bw / 2, by = fy + 64;
+    x.fillStyle = '#8aa0b5'; x.font = '900 ' + (L.big ? 22 : 18) + 'px ' + FONT;
+    x.fillText('INOVA · SIMPLIFICA · SUPERA', W / 2, fy + (L.big ? 54 : 46));
+    var bw = L.big ? 440 : 384, bh = L.big ? 62 : 54, bx = W / 2 - bw / 2, by = fy + (L.big ? 80 : 66);
     x.fillStyle = '#ffeb00'; rr(x, bx, by, bw, bh, bh / 2); x.fill();
-    x.fillStyle = '#000'; x.font = '900 ' + (L.big ? 28 : 24) + 'px ' + FONT; x.textBaseline = 'middle';
+    x.fillStyle = '#04261a'; x.font = '900 ' + (L.big ? 28 : 24) + 'px ' + FONT; x.textBaseline = 'middle';
     x.fillText('FAÇA O SEU PALPITE!', W / 2, by + bh / 2);
-    x.textBaseline = 'alphabetic'; x.fillStyle = ACC; x.font = '700 ' + (L.big ? 24 : 20) + 'px ' + FONT;
+    x.textBaseline = 'alphabetic'; x.fillStyle = '#00b4ff'; x.font = '700 ' + (L.big ? 24 : 20) + 'px ' + FONT;
     x.fillText(URL_LABEL, W / 2, by + bh + (L.big ? 40 : 34)); x.textAlign = 'left';
 
     return c;
@@ -226,6 +236,8 @@ window.Share = (function () {
       img.src = current.toDataURL('image/png');
     }
     render();
+    // redesenha quando a logo do Balera terminar de carregar (caso ainda não esteja pronta)
+    [IMG_ICON, IMG_NOME].forEach(function (im) { if (!imgReady(im)) im.addEventListener('load', render, { once: true }); });
     bg.querySelectorAll('.share-fmt button').forEach(function (b) {
       b.onclick = function () { fmt = b.dataset.f; bg.querySelectorAll('.share-fmt button').forEach(function (z) { z.classList.toggle('active', z === b); }); render(); };
     });
