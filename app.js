@@ -184,7 +184,7 @@
       '<th>Total</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
       (BRASIL_ONLY ? '<div class="note">Desempate: nomes dos artilheiros de cada time na <b>ordem</b> dos gols. Persistindo o empate (=), o vencedor é definido por <b>sorteio do time de marketing</b>.</div>' : '') +
-      (IS_AMARO ? '<div class="hd" style="border-top:1px solid var(--linha);border-bottom:0"><div class="muted">Exportar ranking no layout da Intranet</div><button class="btn ouro" onclick="MM.exportar()">Exportar Excel</button></div>' : '') +
+      (IS_AMARO ? '<div class="export-bar"><div class="export-head">📊 Exportar para a Intranet</div><div class="export-sub">Gera a planilha no formato aceito pela intranet do Balera (CPF + pontos). Para incluir os CPFs, carregue a planilha do SharePoint na aba “Carregar Palpites”.</div><button class="btn ouro" onclick="MM.exportar()">⬇ Exportar Excel</button></div>' : '') +
       '</div>';
   }
 
@@ -533,15 +533,18 @@
     exportar: function () {
       if (typeof XLSX === 'undefined') { alert('Biblioteca XLSX indisponível.'); return; }
       var rk = ranking();
-      var headers = ['cpf', 'placar', 'artilheiros', 'totalpontos'];
+      // Formato aceito pela intranet do Balera: cpf · jogos (placar) · seleçãocommaisgols (0, bônus removido) · artilheiro · totalpontos
+      var headers = ['cpf', 'jogos', 'seleçãocommaisgols', 'artilheiro', 'totalpontos'];
       var data = rk.map(function (x) {
         var cpf = (x.cpf || (window.CPF_BY_NAME && window.CPF_BY_NAME[x.name]) || '').toString().replace(/\D/g, '');
-        return [cpf, x.placarPts, x.scorerPts, x.total];
+        return [cpf, x.placarPts, 0, x.scorerPts, x.total];
       });
+      var semCpf = data.filter(function (r) { return !r[0]; }).length;
+      if (semCpf && !confirm(semCpf + ' participante(s) estão sem CPF. Para incluir os CPFs, carregue a planilha do SharePoint na aba "Carregar Palpites". Exportar mesmo assim?')) return;
       var ws = XLSX.utils.aoa_to_sheet([headers].concat(data));
       for (var i = 2; i <= data.length + 1; i++) { var ref = 'A' + i; if (ws[ref]) { ws[ref].t = 's'; ws[ref].z = '@'; } }
-      var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Ranking');
-      XLSX.writeFile(wb, 'IMPORTACAO_RANKING_BALERA_MATAMATA.xlsx', { bookType: 'xlsx' });
+      var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Palpites');
+      XLSX.writeFile(wb, 'IMPORTACAO_INTRANET_BOLAO_BRASIL.xlsx', { bookType: 'xlsx' });
     }
   };
 
