@@ -11,6 +11,10 @@ window.Share = (function () {
   var PALPITES_URL = window.PALPITES_URL || 'https://matheusalho.github.io/Palpites_Mata-Mata/';
   var URL_LABEL = window.SHARE_URL_LABEL || 'bolao.balera.com.br';
   var FONT = "'Segoe UI', Arial, sans-serif";
+  // Rótulo cheio da fase + data do jogo (card específico da rodada)
+  var FASE_NOME = { 'Oitavas': 'Oitavas de Final', 'Quartas': 'Quartas de Final' };
+  var FASE_LABEL = FASE_NOME[FASE] || FASE;
+  var GAME_DATE = ((JOGOS[0] && JOGOS[0].dataHora) || '').replace(' - ', ' · ');
   // Logo oficial do Balera (arquivo balera_logo_novo.png) embutida como data URI:
   // o card fica 100% autossuficiente (sem CDN) e exporta sem CORS-taint.
   var IMG_ICON = new Image();
@@ -143,7 +147,7 @@ window.Share = (function () {
     x.fillText('A D V O G A D O S', nx + 3, hy + (big ? 80 : 68));
     x.textAlign = 'right';
     x.fillStyle = '#ffdf00'; x.font = '900 ' + (big ? 22 : 18) + 'px ' + FONT; x.fillText('BOLÃO COPA 2026', W - pad, hy + (big ? 26 : 22));
-    x.fillStyle = '#8aa0b5'; x.font = '800 ' + (big ? 16 : 14) + 'px ' + FONT; x.fillText(FASE.toUpperCase(), W - pad, hy + (big ? 56 : 46));
+    x.fillStyle = '#8aa0b5'; x.font = '800 ' + (big ? 16 : 14) + 'px ' + FONT; x.fillText(FASE_LABEL.toUpperCase(), W - pad, hy + (big ? 56 : 46));
     x.textAlign = 'left';
 
     // ----- título + nome do participante (sem ranking) -----
@@ -155,7 +159,15 @@ window.Share = (function () {
     var uy = ty + (big ? 102 : 74), uw = big ? 130 : 96, uh = big ? 9 : 7;
     x.fillStyle = '#009c3b'; x.fillRect(pad, uy, uw, uh);
     x.fillStyle = '#ffdf00'; x.fillRect(pad + uw, uy, uw, uh);
-    var y = ty + (big ? 110 : 80);
+    // selo da rodada + data/hora (deixa o card específico da fase)
+    var badgeTxt = FASE_LABEL.toUpperCase() + (GAME_DATE ? '   ·   ' + GAME_DATE : '');
+    var badgeY = uy + uh + (big ? 18 : 13), badgeH = big ? 44 : 36;
+    x.textBaseline = 'middle'; x.textAlign = 'left'; x.font = '900 ' + (big ? 21 : 17) + 'px ' + FONT;
+    var badgeW = x.measureText(badgeTxt).width + (big ? 44 : 34);
+    x.fillStyle = '#009c3b'; rr(x, pad, badgeY, badgeW, badgeH, badgeH / 2); x.fill();
+    x.fillStyle = '#ffdf00'; x.fillText(badgeTxt, pad + (big ? 22 : 17), badgeY + badgeH / 2 + 1);
+    x.textBaseline = 'alphabetic';
+    var y = badgeY + badgeH;
 
     if (window.BRASIL_ONLY) {
       // versão Brasil: placar + artilheiros (na ordem) de cada time, centralizado
