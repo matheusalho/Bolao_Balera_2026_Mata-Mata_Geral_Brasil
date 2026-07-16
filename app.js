@@ -11,6 +11,8 @@
   'use strict';
   var IS_AMARO = window.APP_VARIANT === 'amaro';
   var BRASIL_ONLY = !!window.BRASIL_ONLY; // versão "só jogos do Brasil" (dados já vêm filtrados; aqui só protege a publicação)
+  // SIMPLIFIED = pontuação simplificada (placar decide; artilheiros desempatam), desacoplada do tema do Brasil.
+  var SIMPLIFIED = BRASIL_ONLY || !!window.SCORING_SIMPLIFICADO;
   var IS_FINAL = (window.CHAVEAMENTO && window.CHAVEAMENTO.faseAtual) === 'Final'; // GRANDE FINAL: elevação dourada + faixa da rodada
   var KICKOFF = Date.parse('2026-07-19T16:00:00-03:00'); // pontapé da Grande Final (contagem regressiva)
   var TROPHY_SVG = '<svg viewBox="0 0 64 86" width="38" height="51" aria-hidden="true"><defs><linearGradient id="fbgold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdeeb8"/><stop offset=".45" stop-color="#e7c04a"/><stop offset="1" stop-color="#a9781f"/></linearGradient></defs><path d="M14 12 C1 15 3 35 20 37" fill="none" stroke="url(#fbgold)" stroke-width="4.5" stroke-linecap="round"/><path d="M50 12 C63 15 61 35 44 37" fill="none" stroke="url(#fbgold)" stroke-width="4.5" stroke-linecap="round"/><path d="M12 8 H52 V20 C52 39 43 50 32 50 C21 50 12 39 12 20 Z" fill="url(#fbgold)"/><rect x="27.5" y="50" width="9" height="11" fill="url(#fbgold)"/><path d="M19 61 H45 L48 71 H16 Z" fill="url(#fbgold)"/><rect x="13" y="71" width="38" height="9" rx="2.5" fill="url(#fbgold)"/></svg>';
@@ -52,7 +54,7 @@
     if (!g || !hasResult(r) || g.home === undefined || g.home === '' || g.away === undefined || g.away === '') return { pts: 0, type: 'none' };
     var gh = +g.home, ga = +g.away, rh = +r.home, ra = +r.away;
     if (gh === rh && ga === ra) return { pts: 10, type: 'exact' };
-    if (!BRASIL_ONLY && Math.sign(gh - ga) === Math.sign(rh - ra)) return { pts: 5, type: 'winner' }; // Brasil: só placar exato pontua
+    if (!SIMPLIFIED && Math.sign(gh - ga) === Math.sign(rh - ra)) return { pts: 5, type: 'winner' }; // simplificado: só placar exato pontua
     return { pts: 0, type: 'miss' };
   }
   // compara lista de artilheiros (de um time) do palpite vs real.
@@ -68,7 +70,7 @@
     for (var k = 0; k < g.length; k++) { var ix = pool.indexOf(g[k]); if (ix >= 0) { nameHits++; pool.splice(ix, 1); } }
     var orderHits = 0, lim = Math.min(g.length, r.length);
     for (var i = 0; i < lim; i++) if (g[i] === r[i]) orderHits++;
-    if (BRASIL_ONLY) {
+    if (SIMPLIFIED) {
       if (!exactPlacar) return { pts: 0, type: 'locked', nameHits: nameHits, orderHits: orderHits }; // sem placar exato → não pontua
       return { pts: nameHits * 5, type: nameHits ? 'names' : 'miss', nameHits: nameHits, orderHits: orderHits };
     }
@@ -94,7 +96,7 @@
       var as = scorerScore(g.awayScorers, r.awayScorers, exactP);
       placarPts += ps.pts; scorerPts += hs.pts + as.pts;
       if (exactP) exact++; if (ps.type === 'winner') winner++;
-      if (BRASIL_ONLY) ordersHit += hs.orderHits + as.orderHits; // desempate Brasil: acertos de ordem (por gol)
+      if (SIMPLIFIED) ordersHit += hs.orderHits + as.orderHits; // desempate simplificado: acertos de ordem (por gol)
       else { if (hs.type === 'order') ordersHit++; if (as.type === 'order') ordersHit++; }
       if (hs.type === 'names') namesHit++; if (as.type === 'names') namesHit++;
       tot += ps.pts + hs.pts + as.pts;
@@ -105,8 +107,8 @@
 
   function ranking() {
     var arr = participants.map(scoreParticipant);
-    if (BRASIL_ONLY) {
-      // Brasil: total → desempate por artilheiros na ordem. Persistindo empate, é sorteio do marketing.
+    if (SIMPLIFIED) {
+      // simplificado: total → desempate por artilheiros na ordem. Persistindo empate, é sorteio do marketing.
       arr.sort(function (a, b) { return b.total - a.total || b.ordersHit - a.ordersHit || a.name.localeCompare(b.name); });
       var pos = 0, n = 0, pk = null;
       arr.forEach(function (x) {
@@ -206,12 +208,12 @@
       '<div class="hd-actions">' + refreshBtn + '<input class="search" placeholder="Buscar participante..." value="' + esc(search) + '" oninput="MM.busca(this.value)"></div></div>' +
       '<div class="tablewrap"><table><thead><tr>' +
       '<th>Pos</th><th class="nome">Participante</th><th title="Placares exatos (cravadas)">Cravadas</th>' +
-      (BRASIL_ONLY
+      (SIMPLIFIED
         ? '<th title="Placar exato = 10 pts">Placar</th><th title="5 pts por nome de artilheiro acertado — só conta para quem cravou o placar">Artilheiros</th>'
         : '<th title="Pontos de placar (10/5)">Placar</th><th title="Pontos de artilheiros (10/15)">Artilheiros</th>') +
       '<th>Total</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
-      (BRASIL_ONLY ? '<div class="note">Desempate: nomes dos artilheiros de cada time na <b>ordem</b> dos gols. Persistindo o empate (=), o vencedor é definido por <b>sorteio do time de marketing</b>.</div>' : '') +
+      (SIMPLIFIED ? '<div class="note">Desempate: nomes dos artilheiros de cada time na <b>ordem</b> dos gols. Persistindo o empate (=), o vencedor é definido por <b>sorteio do time de marketing</b>.</div>' : '') +
       (IS_AMARO ? '<div class="export-bar"><div class="export-head">📊 Exportar para a Intranet</div><div class="export-sub">Gera a planilha no formato aceito pela intranet do Balera (CPF + pontos). Para incluir os CPFs, carregue a planilha do SharePoint na aba “Carregar Palpites”.</div><button class="btn ouro" onclick="MM.exportar()">⬇ Exportar Excel</button></div>' : '') +
       '</div>';
   }
@@ -231,8 +233,8 @@
       var as = scorerScore(g.awayScorers, r ? r.awayScorers : null, exactP);
       return { name: p.name, cpf: p.cpf, g: g, placarPts: ps.pts, scorerPts: hs.pts + as.pts, orderHits: hs.orderHits + as.orderHits, total: ps.pts + hs.pts + as.pts };
     });
-    arr.sort(function (a, b) { return b.total - a.total || (BRASIL_ONLY ? b.orderHits - a.orderHits : b.placarPts - a.placarPts) || a.name.localeCompare(b.name); });
-    if (BRASIL_ONLY) {
+    arr.sort(function (a, b) { return b.total - a.total || (SIMPLIFIED ? b.orderHits - a.orderHits : b.placarPts - a.placarPts) || a.name.localeCompare(b.name); });
+    if (SIMPLIFIED) {
       var pos = 0, n = 0, pk = null;
       arr.forEach(function (x) { n++; var key = x.total + '|' + x.orderHits; if (key !== pk) { pos = n; pk = key; } x.pos = pos; });
       var counts = {}; arr.forEach(function (x) { counts[x.pos] = (counts[x.pos] || 0) + 1; });
@@ -284,11 +286,11 @@
       '<div class="hd-actions">' + (READ_ENDPOINT ? '<button class="btn ghost" onclick="MM.atualizar()">↻ Atualizar</button>' : '') + '<input class="search" placeholder="Buscar participante..." value="' + esc(search) + '" oninput="MM.busca(this.value)"></div></div>' +
       selBlock +
       '<div class="tablewrap"><table><thead><tr><th>Pos</th><th class="nome">Participante</th><th title="Palpite de placar">Palpite</th>' +
-      (BRASIL_ONLY
+      (SIMPLIFIED
         ? '<th title="Placar exato = 10 pts">Placar</th><th title="5 pts por nome de artilheiro acertado — só conta para quem cravou o placar">Artilheiros</th>'
         : '<th title="Pontos de placar (10/5)">Placar</th><th title="Pontos de artilheiros (10/15)">Artilheiros</th>') +
       '<th>Total</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
-      (BRASIL_ONLY ? '<div class="note">Desempate: artilheiros de cada time na <b>ordem</b> dos gols. Persistindo o empate (=), decide o <b>sorteio do marketing</b>.</div>' : '') +
+      (SIMPLIFIED ? '<div class="note">Desempate: artilheiros de cada time na <b>ordem</b> dos gols. Persistindo o empate (=), decide o <b>sorteio do marketing</b>.</div>' : '') +
       '</div>';
   }
 
@@ -338,8 +340,8 @@
   }
 
   function renderRegras() {
-    if (BRASIL_ONLY) {
-      view.innerHTML = '<div class="card"><div class="hd"><h2>Regras — Jogo do Brasil</h2></div><div class="rules">' +
+    if (SIMPLIFIED) {
+      view.innerHTML = '<div class="card"><div class="hd"><h2>Regras</h2></div><div class="rules">' +
         '<div class="rule"><span class="pts">10 pts</span><h3>Placar exato</h3><div class="muted">Acertou o placar exato da partida.</div></div>' +
         '<div class="rule"><span class="pts">5 pts</span><h3>Nome de artilheiro</h3><div class="muted"><b>Só vale para quem cravou o placar exato.</b> A cada nome de jogador que fez gol que você acertar — de <b>qualquer time</b>, em <b>qualquer ordem</b> — são 5 pontos.</div></div>' +
         '<div class="rule"><span class="pts">desempate</span><h3>Artilheiros na ordem</h3><div class="muted">Havendo empate em pontos, fica à frente quem acertou os nomes dos artilheiros de cada time na <b>ordem</b> em que os gols foram feitos.</div></div>' +
@@ -395,7 +397,7 @@
       var scoreTxt = hasPalpite ? (g.home + '<small>x</small>' + g.away) : '<small>sem palpite</small>';
       var ptsBadge = hasR ? ('<span class="dpts' + (gamePts ? '' : ' zero') + '">+' + gamePts + '</span>') : '<span class="dpts wait">a jogar</span>';
       var realLine = hasR ? ('<div class="dreal">Resultado: <b>' + esc(j.mandante) + ' ' + r.home + ' x ' + r.away + ' ' + esc(j.visitante) + '</b>' + (stType(ps.type) ? ' · ' + stType(ps.type) : ' · placar 0') + '</div>') : '';
-      var lockNote = (BRASIL_ONLY && hasR && !exactP && (hs.type === 'locked' || as.type === 'locked')) ? '<div style="font-size:.78rem;color:#94a3b8;margin:0 0 6px">🔒 Sem o placar exato, os artilheiros não pontuam neste jogo.</div>' : '';
+      var lockNote = (SIMPLIFIED && hasR && !exactP && (hs.type === 'locked' || as.type === 'locked')) ? '<div style="font-size:.78rem;color:#94a3b8;margin:0 0 6px">🔒 Sem o placar exato, os artilheiros não pontuam neste jogo.</div>' : '';
       return '<div class="dgame' + (j.brasil ? ' br' : '') + '">' +
         '<div class="dgh"><span class="gnum">J' + j.id + '</span>' +
         '<span class="dteam">' + esc(j.mandante) + '</span>' +
@@ -408,7 +410,7 @@
         '<div class="dcol' + ((as.type === 'order' || as.type === 'names') ? ' hit' : '') + '"><h5>Gols ' + esc(j.visitante) + (as.pts ? ' · +' + as.pts : '') + '</h5>' + lista(g.awayScorers) + '</div>' +
         '</div></div>';
     }).join('');
-    var sum = '<div class="dsum"><span class="chip tot">' + s.total + ' pts</span><span class="chip">Placar ' + s.placarPts + '</span><span class="chip">Artilheiros ' + s.scorerPts + '</span>' + (BRASIL_ONLY ? '<span class="chip" title="Acertos de artilheiro na ordem (desempate)">Ordem ' + s.ordersHit + '</span>' : '') + '<span class="chip">Cravadas ' + s.exact + '</span></div>';
+    var sum = '<div class="dsum"><span class="chip tot">' + s.total + ' pts</span><span class="chip">Placar ' + s.placarPts + '</span><span class="chip">Artilheiros ' + s.scorerPts + '</span>' + (SIMPLIFIED ? '<span class="chip" title="Acertos de artilheiro na ordem (desempate)">Ordem ' + s.ordersHit + '</span>' : '') +'<span class="chip">Cravadas ' + s.exact + '</span></div>';
     var m = document.createElement('div'); m.className = 'modal-bg'; m.onclick = function () { m.remove(); };
     m.innerHTML = '<div class="modal modal-detalhe" onclick="event.stopPropagation()">' +
       '<div class="dhead"><h3>' + esc(p.name) + '</h3><div class="dhead-btns"><button class="btn ciano dshare" onclick="MM.compartilhar()">↗ Compartilhar</button><button class="dclose" aria-label="Fechar" onclick="this.closest(\'.modal-bg\').remove()">✕</button></div></div>' +
