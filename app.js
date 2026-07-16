@@ -11,6 +11,11 @@
   'use strict';
   var IS_AMARO = window.APP_VARIANT === 'amaro';
   var BRASIL_ONLY = !!window.BRASIL_ONLY; // versão "só jogos do Brasil" (dados já vêm filtrados; aqui só protege a publicação)
+  var IS_FINAL = (window.CHAVEAMENTO && window.CHAVEAMENTO.faseAtual) === 'Final'; // GRANDE FINAL: elevação dourada + faixa da rodada
+  var KICKOFF = Date.parse('2026-07-19T16:00:00-03:00'); // pontapé da Grande Final (contagem regressiva)
+  var TROPHY_SVG = '<svg viewBox="0 0 64 86" width="38" height="51" aria-hidden="true"><defs><linearGradient id="fbgold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdeeb8"/><stop offset=".45" stop-color="#e7c04a"/><stop offset="1" stop-color="#a9781f"/></linearGradient></defs><path d="M14 12 C1 15 3 35 20 37" fill="none" stroke="url(#fbgold)" stroke-width="4.5" stroke-linecap="round"/><path d="M50 12 C63 15 61 35 44 37" fill="none" stroke="url(#fbgold)" stroke-width="4.5" stroke-linecap="round"/><path d="M12 8 H52 V20 C52 39 43 50 32 50 C21 50 12 39 12 20 Z" fill="url(#fbgold)"/><rect x="27.5" y="50" width="9" height="11" fill="url(#fbgold)"/><path d="M19 61 H45 L48 71 H16 Z" fill="url(#fbgold)"/><rect x="13" y="71" width="38" height="9" rx="2.5" fill="url(#fbgold)"/></svg>';
+  var FLAG_ES = '<svg viewBox="0 0 30 20" width="28" height="19" aria-hidden="true"><rect width="30" height="20" fill="#c60b1e"/><rect y="5" width="30" height="10" fill="#ffc400"/></svg>';
+  var FLAG_AR = '<svg viewBox="0 0 30 20" width="28" height="19" aria-hidden="true"><rect width="30" height="20" fill="#6fa8dc"/><rect y="6.67" width="30" height="6.66" fill="#fff"/><circle cx="15" cy="10" r="2.1" fill="#f6b40e"/></svg>';
   var JOGOS = (window.CHAVEAMENTO && window.CHAVEAMENTO.jogos) || [];
   var ELENCOS = window.ELENCOS || {};
   var GOL_CONTRA = '(gol contra)';
@@ -141,6 +146,28 @@
     try { return new Date(lastUpdated).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; }
   }
 
+  // Faixa "Grande Final" (só quando faseAtual === 'Final') — dá o peso de uma final de Copa.
+  function flagFor(team) { var t = norm(team); return t === 'espanha' ? FLAG_ES : (t === 'argentina' ? FLAG_AR : ''); }
+  function fmtCountdown() {
+    var diff = KICKOFF - Date.now();
+    if (diff <= 0) return '🔴 Bola rolando';
+    var d = Math.floor(diff / 86400000), h = Math.floor(diff / 3600000) % 24, m = Math.floor(diff / 60000) % 60, s = Math.floor(diff / 1000) % 60;
+    return d + 'd ' + String(h).padStart(2, '0') + 'h ' + String(m).padStart(2, '0') + 'm ' + String(s).padStart(2, '0') + 's';
+  }
+  function finalBanner() {
+    if (!IS_FINAL) return '';
+    var j = JOGOS[0]; if (!j) return '';
+    var dt = (j.dataHora || '').replace(' - ', ' · ');
+    return '<div class="final-banner">' +
+      '<span class="fb-trophy">' + TROPHY_SVG + '</span>' +
+      '<div class="fb-main">' +
+        '<span class="fb-title">Grande Final · Copa do Mundo FIFA 2026</span>' +
+        '<span class="fb-match">' + flagFor(j.mandante) + '<b>' + esc(j.mandante) + '</b><span class="fb-x">×</span><b>' + esc(j.visitante) + '</b>' + flagFor(j.visitante) + '</span>' +
+      '</div>' +
+      '<div class="fb-cd"><span id="final-cd">' + fmtCountdown() + '</span>' + (dt ? '<span class="fb-cd-lbl">' + esc(dt) + '</span>' : '') + '</div>' +
+      '</div>';
+  }
+
   function renderRanking() {
     var refreshBtn = READ_ENDPOINT ? '<button class="btn ghost" onclick="MM.atualizar()" title="Recarregar palpites da planilha">↻ Atualizar</button>' : '';
     if (!participants.length) {
@@ -173,6 +200,7 @@
       + (lastUpdated ? ' · atualizado ' + fmtUpdated() : '')
       + (autoState === 'loading' ? ' <span class="loadingdot">• atualizando…</span>' : '');
     view.innerHTML =
+      finalBanner() +
       '<div class="card">' +
       '<div class="hd"><div><h2>' + (BRASIL_ONLY ? 'Ranking — Jogo do Brasil' : 'Ranking Geral') + '</h2><div class="muted">' + sub + '</div></div>' +
       '<div class="hd-actions">' + refreshBtn + '<input class="search" placeholder="Buscar participante..." value="' + esc(search) + '" oninput="MM.busca(this.value)"></div></div>' +
@@ -188,9 +216,10 @@
       '</div>';
   }
 
-  // ---------- Ranking restrito aos jogos do Brasil ----------
-  function brasilGames() {
-    return JOGOS.filter(function (j) { return norm(j.mandante) === 'brasil' || norm(j.visitante) === 'brasil'; });
+  // ---------- Ranking por jogo (aba "Por jogo") ----------
+  // Brasil eliminado: a aba lista TODOS os jogos da rodada (não só os do Brasil).
+  function perGameList() {
+    return JOGOS.slice();
   }
   function rankBrasil(gameId) {
     var r = realResults[gameId];
@@ -218,8 +247,8 @@
       view.innerHTML = '<div class="card"><div class="empty">Nenhum palpite carregado ainda.' + (READ_ENDPOINT ? '<br><br><button class="btn ciano" onclick="MM.atualizar()">Atualizar agora</button>' : '') + '</div></div>';
       return;
     }
-    var games = brasilGames();
-    if (!games.length) { view.innerHTML = '<div class="card"><div class="empty">Nenhum jogo do Brasil definido ainda.</div></div>'; return; }
+    var games = perGameList();
+    if (!games.length) { view.innerHTML = '<div class="card"><div class="empty">Nenhum jogo definido ainda.</div></div>'; return; }
     if (brGameId == null || !games.some(function (j) { return j.id === brGameId; })) brGameId = games[0].id;
     var j = jogoById(brGameId);
     var r = realResults[brGameId];
@@ -246,11 +275,12 @@
     }).join('');
     var sub = (hasR ? 'Resultado oficial: ' + esc(j.mandante + ' ' + r.home + ' x ' + r.away + ' ' + j.visitante) : 'Aguardando o resultado do jogo') + ' · ' + participants.length + (participants.length === 1 ? ' participante' : ' participantes');
     var selBlock = games.length > 1
-      ? '<div class="filters"><label for="brsel">Jogo do Brasil:</label><select id="brsel" onchange="MM.selBrasil(this.value)">' + options + '</select></div>'
-      : '<div class="filters single"><div class="bgame">' + FLAG_SVG + esc(j.mandante + ' x ' + j.visitante) + (j.dataHora ? ' <span class="bgame-dt">' + esc(j.dataHora) + '</span>' : '') + '</div></div>';
+      ? '<div class="filters"><label for="brsel">Jogo:</label><select id="brsel" onchange="MM.selBrasil(this.value)">' + options + '</select></div>'
+      : '<div class="filters single"><div class="bgame">' + esc(j.mandante + ' x ' + j.visitante) + (j.dataHora ? ' <span class="bgame-dt">' + esc(j.dataHora) + '</span>' : '') + '</div></div>';
     view.innerHTML =
+      finalBanner() +
       '<div class="card">' +
-      '<div class="hd"><div><h2>Ranking — Jogo do Brasil</h2><div class="muted">' + sub + '</div></div>' +
+      '<div class="hd"><div><h2>Ranking por jogo</h2><div class="muted">' + sub + '</div></div>' +
       '<div class="hd-actions">' + (READ_ENDPOINT ? '<button class="btn ghost" onclick="MM.atualizar()">↻ Atualizar</button>' : '') + '<input class="search" placeholder="Buscar participante..." value="' + esc(search) + '" oninput="MM.busca(this.value)"></div></div>' +
       selBlock +
       '<div class="tablewrap"><table><thead><tr><th>Pos</th><th class="nome">Participante</th><th title="Palpite de placar">Palpite</th>' +
@@ -294,13 +324,14 @@
         '</div>';
     }).join('');
     var faseTxt = (window.CHAVEAMENTO && window.CHAVEAMENTO.faseAtual) ? window.CHAVEAMENTO.faseAtual : '';
+    var umJogo = JOGOS.length === 1;
     var head = ro
-      ? (faseTxt ? faseTxt + ' · ' : '') + 'Resultados oficiais (somente leitura), atualizados pelo responsável.'
-      : (faseTxt ? faseTxt + ' · ' : '') + 'Informe o placar e os artilheiros (na ordem) e clique em <b>Publicar resultados</b> para todos verem.';
+      ? (faseTxt ? faseTxt + ' · ' : '') + (umJogo ? 'Resultado oficial (somente leitura), atualizado pelo responsável.' : 'Resultados oficiais (somente leitura), atualizados pelo responsável.')
+      : (faseTxt ? faseTxt + ' · ' : '') + 'Informe o placar e os artilheiros (na ordem) e clique em <b>Publicar ' + (umJogo ? 'resultado' : 'resultados') + '</b> para todos verem.';
     var actions = IS_AMARO
       ? '<button class="btn ciano" onclick="MM.publicarResultados()">Publicar resultados</button>'
       : (READ_ENDPOINT ? '<button class="btn ghost" onclick="MM.atualizar()">↻ Atualizar</button>' : '');
-    view.innerHTML = '<div class="card jogos-card"><div class="hd"><div><h2>Jogos e Resultados</h2><div class="muted">' + head + '</div></div>' + actions + '</div>' +
+    view.innerHTML = '<div class="card jogos-card"><div class="hd"><div><h2>' + (umJogo ? 'Jogo e Resultado' : 'Jogos e Resultados') + '</h2><div class="muted">' + head + '</div></div>' + actions + '</div>' +
       '<p id="pubmsg" class="note" style="display:none"></p>' +
       '<div class="note">' + (JOGOS.length === 1 ? 'Os pontos contam apenas para o jogo com placar preenchido.' : 'Os pontos contam apenas para os jogos com placar preenchido.') + '</div>' +
       '<div class="games">' + cards + '</div></div>';
@@ -319,7 +350,7 @@
     view.innerHTML = '<div class="card"><div class="hd"><h2>Regras — Mata-Mata</h2></div><div class="rules">' +
       '<div class="rule"><span class="pts">10 pts</span><h3>Placar exato</h3><div class="muted">Acertou o placar exato do jogo.</div></div>' +
       '<div class="rule"><span class="pts">5 pts</span><h3>Vencedor ou empate</h3><div class="muted">Acertou o lado vencedor (ou o empate), mas não o placar exato.</div></div>' +
-      '<div class="rule"><span class="pts">10 pts</span><h3>Nomes dos artilheiros (por time)</h3><div class="muted">Acertou quem marcou os gols de um time naquele jogo (sem a ordem). Avaliado para cada time. Brasil é obrigatório no palpite; demais times opcionais, mas pontuam se acertar.</div></div>' +
+      '<div class="rule"><span class="pts">10 pts</span><h3>Nomes dos artilheiros (por time)</h3><div class="muted">Acertou quem marcou os gols de um time naquele jogo (sem a ordem). Avaliado para cada time. Os artilheiros são opcionais no palpite, mas pontuam se você acertar.</div></div>' +
       '<div class="rule"><span class="pts">15 pts</span><h3>Artilheiros na ordem (por time)</h3><div class="muted">Acertou os nomes E a ordem dos gols de um time. NÃO soma com os 10 — vale o maior (15).</div></div>' +
       '<div class="muted">Desempate: total → cravadas → acertos na ordem → acertos de nomes → vencedores.</div>' +
       '</div></div>';
@@ -509,7 +540,7 @@
       show('Publicando ' + results.length + ' jogo(s)...');
       fetch(WRITE_RESULTS_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ results: results }) })
         .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-        .then(function () { show('✓ Resultados publicados (' + results.length + ' jogos). Os colaboradores já veem o ranking atualizado.'); })
+        .then(function () { var n = results.length; show('✓ ' + (n === 1 ? 'Resultado publicado (1 jogo)' : 'Resultados publicados (' + n + ' jogos)') + '. Os colaboradores já veem o ranking atualizado.'); })
         .catch(function (e) { show('Falha ao publicar: ' + e.message); });
     },
     busca: function (v) { search = v; clearTimeout(window.__t); window.__t = setTimeout(function () { (activeTab === 'brasil' ? renderRankingBrasil : renderRanking)(); var inp = document.querySelector('.search'); if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); } }, 120); },
@@ -544,7 +575,7 @@
       var ws = XLSX.utils.aoa_to_sheet([headers].concat(data));
       for (var i = 2; i <= data.length + 1; i++) { var ref = 'A' + i; if (ws[ref]) { ws[ref].t = 's'; ws[ref].z = '@'; } }
       var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Palpites');
-      XLSX.writeFile(wb, 'IMPORTACAO_INTRANET_BOLAO_BRASIL.xlsx', { bookType: 'xlsx' });
+      XLSX.writeFile(wb, 'IMPORTACAO_INTRANET_BOLAO_BALERA.xlsx', { bookType: 'xlsx' });
     }
   };
 
@@ -593,6 +624,16 @@
       if (b.dataset.tab === 'brasil') b.textContent = 'Por jogo';
     });
     document.title = 'Bolão BALERA — Jogo do Brasil' + (IS_AMARO ? ' (Amaro)' : '');
+  }
+  if (IS_FINAL) {
+    document.body.classList.add('final-theme');
+    var _hf = document.querySelector('header h1'); if (_hf) _hf.textContent = IS_AMARO ? 'Grande Final · Ranking + Exportação' : 'Grande Final · Ranking';
+    var _sf = document.querySelector('header .sub'); if (_sf) _sf.textContent = 'Copa do Mundo FIFA 2026' + (IS_AMARO ? ' · Amaro' : '');
+    document.title = 'Bolão BALERA — Grande Final · Ranking' + (IS_AMARO ? ' (Amaro / Intranet)' : '');
+    setInterval(function () { var el = document.getElementById('final-cd'); if (el) el.textContent = fmtCountdown(); }, 1000);
+  }
+  if (JOGOS.length === 1) {
+    document.querySelectorAll('#tabs button').forEach(function (b) { if (b.dataset.tab === 'jogos') b.textContent = 'Jogo e Resultado'; });
   }
   render();
   if (READ_ENDPOINT) autoLoad(false);

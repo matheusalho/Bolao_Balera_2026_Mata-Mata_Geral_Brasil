@@ -11,10 +11,14 @@ window.Share = (function () {
   var PALPITES_URL = window.PALPITES_URL || 'https://matheusalho.github.io/Palpites_Mata-Mata/';
   var URL_LABEL = window.SHARE_URL_LABEL || 'bolao.balera.com.br';
   var FONT = "'Segoe UI', Arial, sans-serif";
-  // Rótulo cheio da fase + data do jogo (card específico da rodada)
-  var FASE_NOME = { 'Oitavas': 'Oitavas de Final', 'Quartas': 'Quartas de Final' };
+  // Rótulo cheio da fase + data (card específico da rodada)
+  var FASE_NOME = { 'Oitavas': 'Oitavas de Final', 'Quartas': 'Quartas de Final', 'Semifinal': 'Semifinal', 'Final': 'Grande Final' };
   var FASE_LABEL = FASE_NOME[FASE] || FASE;
-  var GAME_DATE = ((JOGOS[0] && JOGOS[0].dataHora) || '').replace(' - ', ' · ');
+  var IS_FINAL = FASE === 'Final'; // GRANDE FINAL: card com acento dourado (troféu)
+  // 1 jogo → mostra "data · hora"; vários jogos na mesma data → mostra só a data.
+  var _dates = JOGOS.map(function (j) { return (((j.dataHora || '').split(' - ')[0]) || '').trim(); }).filter(Boolean);
+  var _uniqDate = (_dates.length && _dates.every(function (d) { return d === _dates[0]; })) ? _dates[0] : '';
+  var GAME_DATE = JOGOS.length === 1 ? (((JOGOS[0] && JOGOS[0].dataHora) || '').replace(' - ', ' · ')) : _uniqDate;
   // Logo oficial do Balera (arquivo balera_logo_novo.png) embutida como data URI:
   // o card fica 100% autossuficiente (sem CDN) e exporta sem CORS-taint.
   var IMG_ICON = new Image();
@@ -29,11 +33,35 @@ window.Share = (function () {
   function rr(x, a, b, w, h, r) { x.beginPath(); x.moveTo(a + r, b); x.arcTo(a + w, b, a + w, b + h, r); x.arcTo(a + w, b + h, a, b + h, r); x.arcTo(a, b + h, a, b, r); x.arcTo(a, b, a + w, b, r); x.closePath(); }
   function trunc(x, s, max) { s = s == null ? '' : '' + s; if (x.measureText(s).width <= max) return s; while (s.length > 1 && x.measureText(s + '…').width > max) s = s.slice(0, -1); return s + '…'; }
 
+  // ----- elementos da Grande Final desenhados no canvas (bandeiras + taça) -----
+  function finalHasFlag(team) { var t = (team == null ? '' : ('' + team)).toLowerCase(); return t === 'espanha' || t === 'argentina'; }
+  function drawFlag(x, team, fx, fy, fw, fh) {
+    var t = (team == null ? '' : ('' + team)).toLowerCase();
+    x.save(); rr(x, fx, fy, fw, fh, 3); x.clip();
+    if (t === 'espanha') { x.fillStyle = '#c60b1e'; x.fillRect(fx, fy, fw, fh); x.fillStyle = '#ffc400'; x.fillRect(fx, fy + fh * 0.25, fw, fh * 0.5); }
+    else if (t === 'argentina') { x.fillStyle = '#6fa8dc'; x.fillRect(fx, fy, fw, fh); x.fillStyle = '#fff'; x.fillRect(fx, fy + fh / 3, fw, fh / 3); x.fillStyle = '#f6b40e'; x.beginPath(); x.arc(fx + fw / 2, fy + fh / 2, fh * 0.14, 0, 7); x.fill(); }
+    x.restore();
+    x.strokeStyle = 'rgba(255,255,255,0.55)'; x.lineWidth = 1.5; rr(x, fx, fy, fw, fh, 3); x.stroke();
+  }
+  function drawTrophy(x, cx, topY, sc) {
+    function px(sx) { return cx + (sx - 32) * sc; } function py(sy) { return topY + sy * sc; }
+    var g = x.createLinearGradient(0, topY, 0, topY + 86 * sc); g.addColorStop(0, '#fdeeb8'); g.addColorStop(0.45, '#e7c04a'); g.addColorStop(1, '#a9781f');
+    x.save(); x.strokeStyle = g; x.lineWidth = 4.5 * sc; x.lineCap = 'round';
+    x.beginPath(); x.moveTo(px(14), py(12)); x.bezierCurveTo(px(1), py(15), px(3), py(35), px(20), py(37)); x.stroke();
+    x.beginPath(); x.moveTo(px(50), py(12)); x.bezierCurveTo(px(63), py(15), px(61), py(35), px(44), py(37)); x.stroke();
+    x.fillStyle = g;
+    x.beginPath(); x.moveTo(px(12), py(8)); x.lineTo(px(52), py(8)); x.lineTo(px(52), py(20)); x.bezierCurveTo(px(52), py(39), px(43), py(50), px(32), py(50)); x.bezierCurveTo(px(21), py(50), px(12), py(39), px(12), py(20)); x.closePath(); x.fill();
+    x.fillRect(px(27.5), py(50), 9 * sc, 11 * sc);
+    x.beginPath(); x.moveTo(px(19), py(61)); x.lineTo(px(45), py(61)); x.lineTo(px(48), py(71)); x.lineTo(px(16), py(71)); x.closePath(); x.fill();
+    x.fillRect(px(13), py(71), 38 * sc, 9 * sc);
+    x.restore();
+  }
+
   function drawRow(x, gx, gy, gw, rowH, j, g, fs) {
     var br = !!j.brasil;
     var has = g && g.home !== undefined && g.home !== '' && g.home != null;
     var inner = rowH - 8;
-    if (br) { x.fillStyle = 'rgba(255,235,0,0.13)'; rr(x, gx, gy, gw, inner, 10); x.fill(); x.fillStyle = '#ffeb00'; x.fillRect(gx, gy, 6, inner); }
+    if (br) { x.fillStyle = 'rgba(0,180,255,0.13)'; rr(x, gx, gy, gw, inner, 10); x.fill(); x.fillStyle = '#00b4ff'; x.fillRect(gx, gy, 6, inner); }
     else { x.fillStyle = 'rgba(255,255,255,0.04)'; rr(x, gx, gy, gw, inner, 10); x.fill(); }
     var cx = gx + gw / 2, my = gy + inner / 2, half = gw / 2;
     x.textBaseline = 'middle';
@@ -42,13 +70,13 @@ window.Share = (function () {
     x.textAlign = 'right'; x.fillText(trunc(x, j.mandante, half - 78), cx - 52, my);
     x.textAlign = 'left'; x.fillText(trunc(x, j.visitante, half - 78), cx + 52, my);
     x.textAlign = 'center'; x.font = '900 ' + fs + 'px ' + FONT;
-    x.fillStyle = has ? '#ffeb00' : '#5b6b7d'; x.fillText(has ? ('' + g.home) : '–', cx - 24, my);
+    x.fillStyle = has ? '#ffd24a' : '#5b6b7d'; x.fillText(has ? ('' + g.home) : '–', cx - 24, my);
     x.fillStyle = '#5b6b7d'; x.font = '900 ' + (fs - 4) + 'px ' + FONT; x.fillText('x', cx, my + 1);
-    x.fillStyle = has ? '#ffeb00' : '#5b6b7d'; x.font = '900 ' + fs + 'px ' + FONT; x.fillText(has ? ('' + g.away) : '–', cx + 24, my);
+    x.fillStyle = has ? '#ffd24a' : '#5b6b7d'; x.font = '900 ' + fs + 'px ' + FONT; x.fillText(has ? ('' + g.away) : '–', cx + 24, my);
     x.textAlign = 'left'; x.textBaseline = 'alphabetic';
   }
 
-  // ----- versão BRASIL: bloco detalhado por jogo (placar + artilheiros na ordem, por time) -----
+  // ----- bloco detalhado por jogo: placar + artilheiros (na ordem) de cada time -----
   function bsz(L) {
     return L.big
       ? { team: 34, sc: 46, name: 27, line: 48, head: 118, colh: 22, idx: 15, gap: 22, off: 94 }
@@ -71,17 +99,24 @@ window.Share = (function () {
     var cx = gx + gw / 2;
     // painel
     x.fillStyle = 'rgba(255,255,255,0.05)'; rr(x, gx, gy, gw, h, 18); x.fill();
-    x.fillStyle = '#009c3b'; x.fillRect(gx, gy, 7, h);
+    x.fillStyle = '#00b4ff'; x.fillRect(gx, gy, 7, h);
     // selo J{id}
     x.textBaseline = 'middle'; x.textAlign = 'center';
-    x.fillStyle = '#ffeb00'; rr(x, gx + 28, gy + 24, 62, 32, 8); x.fill();
-    x.fillStyle = '#000'; x.font = '900 19px ' + FONT; x.fillText('J' + j.id, gx + 59, gy + 41);
+    x.fillStyle = '#00b4ff'; rr(x, gx + 28, gy + 24, 62, 32, 8); x.fill();
+    x.fillStyle = '#04121f'; x.font = '900 19px ' + FONT; x.fillText('J' + j.id, gx + 59, gy + 41);
     // confronto + placar
     var my = gy + s.head / 2 + 6;
     x.font = '800 ' + s.team + 'px ' + FONT; x.fillStyle = '#fff';
     x.textAlign = 'right'; x.fillText(trunc(x, j.mandante, gw / 2 - s.off - 12), cx - s.off, my);
     x.textAlign = 'left'; x.fillText(trunc(x, j.visitante, gw / 2 - s.off - 12), cx + s.off, my);
-    x.textAlign = 'center'; x.font = '900 ' + s.sc + 'px ' + FONT; x.fillStyle = '#ffeb00';
+    if (IS_FINAL) { // bandeiras dos finalistas ao lado dos nomes
+      var _mW = x.measureText(trunc(x, j.mandante, gw / 2 - s.off - 12)).width;
+      var _vW = x.measureText(trunc(x, j.visitante, gw / 2 - s.off - 12)).width;
+      var _fw = s.team * 1.4, _fh = s.team * 0.92, _fg = 12;
+      if (finalHasFlag(j.mandante)) drawFlag(x, j.mandante, cx - s.off - _mW - _fg - _fw, my - _fh / 2, _fw, _fh);
+      if (finalHasFlag(j.visitante)) drawFlag(x, j.visitante, cx + s.off + _vW + _fg, my - _fh / 2, _fw, _fh);
+    }
+    x.textAlign = 'center'; x.font = '900 ' + s.sc + 'px ' + FONT; x.fillStyle = '#ffd24a';
     x.fillText(has ? (g.home + ' x ' + g.away) : '– x –', cx, my);
     // divisória horizontal
     x.strokeStyle = 'rgba(255,255,255,0.13)'; x.lineWidth = 2;
@@ -104,7 +139,7 @@ window.Share = (function () {
       for (var i = 0; i < list.length; i++) {
         var ly = hdrY + 24 + i * s.line + s.line / 2;
         x.textBaseline = 'middle';
-        x.fillStyle = '#009c3b'; x.beginPath(); x.arc(colX + s.idx, ly, s.idx, 0, 7); x.fill();
+        x.fillStyle = '#1e3a8a'; x.beginPath(); x.arc(colX + s.idx, ly, s.idx, 0, 7); x.fill();
         x.fillStyle = '#fff'; x.font = '900 ' + (s.idx + 2) + 'px ' + FONT; x.textAlign = 'center'; x.fillText('' + (i + 1), colX + s.idx, ly + 1);
         x.fillStyle = '#e8eef5'; x.font = '700 ' + s.name + 'px ' + FONT; x.textAlign = 'left';
         x.fillText(trunc(x, list[i], colW - (s.idx * 2 + 14)), colX + s.idx * 2 + 12, ly);
@@ -122,19 +157,19 @@ window.Share = (function () {
     var big = L.big;
     var c = document.createElement('canvas'); c.width = W; c.height = H;
     var x = c.getContext('2d');
-    // ----- fundo escuro premium + brilhos nas cores do Brasil -----
+    // ----- fundo escuro premium + brilhos nas cores Balera -----
     var bgGrad = x.createLinearGradient(0, 0, 0, H);
-    bgGrad.addColorStop(0, '#0a120e'); bgGrad.addColorStop(0.5, '#070a0e'); bgGrad.addColorStop(1, '#0a0e14');
+    bgGrad.addColorStop(0, '#0b1220'); bgGrad.addColorStop(0.5, '#080c15'); bgGrad.addColorStop(1, '#0a1018');
     x.fillStyle = bgGrad; x.fillRect(0, 0, W, H);
     function glow(gx, gy, gr, col) { var g = x.createRadialGradient(gx, gy, 0, gx, gy, gr); g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, W, H); }
-    glow(W * 0.95, H * 0.08, W * 0.62, 'rgba(0,160,60,0.20)');   // verde (topo-direita)
-    glow(W * 0.04, H * 0.93, W * 0.60, 'rgba(0,45,130,0.22)');   // azul (base-esquerda)
-    glow(W * 0.10, H * 0.05, W * 0.36, 'rgba(255,223,0,0.07)');  // amarelo (topo-esquerda)
-    // ----- faixa tricolor (Brasil) no topo -----
+    glow(W * 0.95, H * 0.08, W * 0.62, 'rgba(0,180,255,0.18)');   // ciano Balera (topo-direita)
+    glow(W * 0.04, H * 0.93, W * 0.60, 'rgba(30,58,138,0.30)');   // azul Balera (base-esquerda)
+    glow(W * 0.10, H * 0.05, W * 0.36, 'rgba(212,175,55,0.10)');  // ouro (topo-esquerda)
+    // ----- faixa tricolor Balera no topo (azul · ciano · ouro) -----
     var t3 = W / 3;
-    x.fillStyle = '#009c3b'; x.fillRect(0, 0, t3, 12);
-    x.fillStyle = '#ffdf00'; x.fillRect(t3, 0, t3, 12);
-    x.fillStyle = '#002776'; x.fillRect(2 * t3, 0, W - 2 * t3, 12);
+    x.fillStyle = '#1e3a8a'; x.fillRect(0, 0, t3, 12);
+    x.fillStyle = '#00b4ff'; x.fillRect(t3, 0, t3, 12);
+    x.fillStyle = '#D4AF37'; x.fillRect(2 * t3, 0, W - 2 * t3, 12);
 
     // ----- cabeçalho: logo REAL do Balera (esq) + bolão (dir) -----
     var hy = pad + 12;
@@ -146,31 +181,35 @@ window.Share = (function () {
     x.fillStyle = '#00b4ff'; x.font = '700 ' + (big ? 16 : 14) + 'px ' + FONT;
     x.fillText('A D V O G A D O S', nx + 3, hy + (big ? 80 : 68));
     x.textAlign = 'right';
-    x.fillStyle = '#ffdf00'; x.font = '900 ' + (big ? 22 : 18) + 'px ' + FONT; x.fillText('BOLÃO COPA 2026', W - pad, hy + (big ? 26 : 22));
-    x.fillStyle = '#8aa0b5'; x.font = '800 ' + (big ? 16 : 14) + 'px ' + FONT; x.fillText(FASE_LABEL.toUpperCase(), W - pad, hy + (big ? 56 : 46));
+    x.fillStyle = '#D4AF37'; x.font = '900 ' + (big ? 22 : 18) + 'px ' + FONT; x.fillText('BOLÃO COPA 2026', W - pad, hy + (big ? 26 : 22));
+    x.fillStyle = IS_FINAL ? '#e9c86a' : '#8aa0b5'; x.font = '800 ' + (big ? 16 : 14) + 'px ' + FONT; x.fillText(FASE_LABEL.toUpperCase(), W - pad, hy + (big ? 56 : 46));
     x.textAlign = 'left';
 
     // ----- título + nome do participante (sem ranking) -----
     var ty = big ? 256 : 178;
-    x.fillStyle = '#3ec46e'; x.font = '900 ' + (big ? 30 : 23) + 'px ' + FONT;
+    x.fillStyle = IS_FINAL ? '#e9c86a' : '#00b4ff'; x.font = '900 ' + (big ? 30 : 23) + 'px ' + FONT;
     x.fillText('MEU PALPITE', pad, ty);
     x.fillStyle = '#fff'; x.font = '900 ' + (big ? 72 : 50) + 'px ' + FONT;
     x.fillText(trunc(x, data.name, W - 2 * pad), pad, ty + (big ? 80 : 58));
     var uy = ty + (big ? 102 : 74), uw = big ? 130 : 96, uh = big ? 9 : 7;
-    x.fillStyle = '#009c3b'; x.fillRect(pad, uy, uw, uh);
-    x.fillStyle = '#ffdf00'; x.fillRect(pad + uw, uy, uw, uh);
+    x.fillStyle = IS_FINAL ? '#D4AF37' : '#00b4ff'; x.fillRect(pad, uy, uw, uh);
+    x.fillStyle = IS_FINAL ? '#f2d78e' : '#D4AF37'; x.fillRect(pad + uw, uy, uw, uh);
     // selo da rodada + data/hora (deixa o card específico da fase)
     var badgeTxt = FASE_LABEL.toUpperCase() + (GAME_DATE ? '   ·   ' + GAME_DATE : '');
     var badgeY = uy + uh + (big ? 18 : 13), badgeH = big ? 44 : 36;
     x.textBaseline = 'middle'; x.textAlign = 'left'; x.font = '900 ' + (big ? 21 : 17) + 'px ' + FONT;
     var badgeW = x.measureText(badgeTxt).width + (big ? 44 : 34);
-    x.fillStyle = '#009c3b'; rr(x, pad, badgeY, badgeW, badgeH, badgeH / 2); x.fill();
-    x.fillStyle = '#ffdf00'; x.fillText(badgeTxt, pad + (big ? 22 : 17), badgeY + badgeH / 2 + 1);
+    x.fillStyle = IS_FINAL ? '#D4AF37' : '#1e3a8a'; rr(x, pad, badgeY, badgeW, badgeH, badgeH / 2); x.fill();
+    x.fillStyle = IS_FINAL ? '#241a02' : '#ffd24a'; x.fillText(badgeTxt, pad + (big ? 22 : 17), badgeY + badgeH / 2 + 1);
     x.textBaseline = 'alphabetic';
+    if (IS_FINAL) { // taça dourada ao lado do selo da rodada
+      var _tsc = (badgeH * 1.55) / 86;
+      drawTrophy(x, pad + badgeW + (big ? 40 : 28) + 32 * _tsc, badgeY + badgeH / 2 - (86 * _tsc) / 2, _tsc);
+    }
     var y = badgeY + badgeH;
 
-    if (window.BRASIL_ONLY) {
-      // versão Brasil: placar + artilheiros (na ordem) de cada time, centralizado
+    if (JOGOS.length <= 4) {
+      // rodada com poucos jogos: bloco detalhado (placar + artilheiros na ordem, por time), centralizado
       var bgap = bsz(L).gap;
       var hs = JOGOS.map(function (j) { return brasilGameHeight((data.guesses || {})[j.id] || {}, L); });
       var totalH = hs.reduce(function (a, b) { return a + b; }, 0) + bgap * Math.max(0, JOGOS.length - 1);
@@ -178,14 +217,14 @@ window.Share = (function () {
       var areaTop = y + (L.big ? 30 : 22), areaBot = footerY - 24, titleGap = 46;
       var startY = areaTop + Math.max(0, (areaBot - areaTop - titleGap - totalH) / 2) + titleGap;
       x.fillStyle = '#8aa0b5'; x.font = '900 ' + (L.big ? 24 : 20) + 'px ' + FONT; x.textAlign = 'left';
-      x.fillText('PALPITE · JOGO DO BRASIL', pad, startY - 18);
+      x.fillText(JOGOS.length === 1 ? 'MEU PALPITE' : 'PALPITES DA RODADA', pad, startY - 18);
       var gyy = startY;
       JOGOS.forEach(function (j, i) {
         drawBrasilGame(x, pad, gyy, W - 2 * pad, j, (data.guesses || {})[j.id] || {}, L);
         gyy += hs[i] + bgap;
       });
     } else {
-      // título da lista
+      // rodada com muitos jogos: lista compacta (só placar)
       x.fillStyle = '#8aa0b5'; x.font = '900 ' + (L.big ? 24 : 20) + 'px ' + FONT; x.textAlign = 'left';
       x.fillText('TODOS OS PALPITES', pad, L.gamesTop - 26);
       // jogos
@@ -203,15 +242,15 @@ window.Share = (function () {
     // rodapé
     var fy = H - (L.big ? 215 : 175);
     var ft = (W - 2 * pad) / 3;
-    x.fillStyle = '#009c3b'; x.fillRect(pad, fy, ft, 5);
-    x.fillStyle = '#ffdf00'; x.fillRect(pad + ft, fy, ft, 5);
-    x.fillStyle = '#002776'; x.fillRect(pad + 2 * ft, fy, (W - 2 * pad) - 2 * ft, 5);
+    x.fillStyle = '#1e3a8a'; x.fillRect(pad, fy, ft, 5);
+    x.fillStyle = '#00b4ff'; x.fillRect(pad + ft, fy, ft, 5);
+    x.fillStyle = '#D4AF37'; x.fillRect(pad + 2 * ft, fy, (W - 2 * pad) - 2 * ft, 5);
     x.textAlign = 'center';
     x.fillStyle = '#8aa0b5'; x.font = '900 ' + (L.big ? 22 : 18) + 'px ' + FONT;
     x.fillText('INOVA · SIMPLIFICA · SUPERA', W / 2, fy + (L.big ? 54 : 46));
     var bw = L.big ? 440 : 384, bh = L.big ? 62 : 54, bx = W / 2 - bw / 2, by = fy + (L.big ? 80 : 66);
-    x.fillStyle = '#ffeb00'; rr(x, bx, by, bw, bh, bh / 2); x.fill();
-    x.fillStyle = '#04261a'; x.font = '900 ' + (L.big ? 28 : 24) + 'px ' + FONT; x.textBaseline = 'middle';
+    x.fillStyle = '#00b4ff'; rr(x, bx, by, bw, bh, bh / 2); x.fill();
+    x.fillStyle = '#04121f'; x.font = '900 ' + (L.big ? 28 : 24) + 'px ' + FONT; x.textBaseline = 'middle';
     x.fillText('FAÇA O SEU PALPITE!', W / 2, by + bh / 2);
     x.textBaseline = 'alphabetic'; x.fillStyle = '#00b4ff'; x.font = '700 ' + (L.big ? 24 : 20) + 'px ' + FONT;
     x.fillText(URL_LABEL, W / 2, by + bh + (L.big ? 40 : 34)); x.textAlign = 'left';
@@ -221,7 +260,8 @@ window.Share = (function () {
 
   // ---------- compartilhamento ----------
   function canvasToBlob(c) { return new Promise(function (res) { c.toBlob(function (b) { res(b); }, 'image/png', 0.95); }); }
-  function shareText(data) { return 'Confira meus palpites no Bolão Balera 2026 — ' + FASE + '! 🏆⚽\nFaça o seu: ' + PALPITES_URL; }
+  var ONE_GAME = JOGOS.length === 1;
+  function shareText(data) { return 'Confira ' + (ONE_GAME ? 'meu palpite' : 'meus palpites') + ' no Bolão Balera 2026 — ' + FASE_LABEL + '! 🏆⚽\nFaça o seu: ' + PALPITES_URL; }
 
   function open(data) {
     var fmt = 'story';
@@ -229,7 +269,7 @@ window.Share = (function () {
     var canShare = !!(navigator.canShare && navigator.share);
     bg.innerHTML =
       '<div class="modal share-modal" onclick="event.stopPropagation()">' +
-      '<div class="dhead"><h3>Compartilhar palpites</h3><button class="dclose" onclick="this.closest(\'.modal-bg\').remove()">✕</button></div>' +
+      '<div class="dhead"><h3>' + (ONE_GAME ? 'Compartilhar palpite' : 'Compartilhar palpites') + '</h3><button class="dclose" onclick="this.closest(\'.modal-bg\').remove()">✕</button></div>' +
       '<div class="share-fmt"><button data-f="story" class="active">Stories 9:16</button><button data-f="square">Quadrado 1:1</button></div>' +
       '<div class="share-prev"><img alt="Prévia do card de palpites"/></div>' +
       '<div class="share-actions">' +
@@ -260,7 +300,7 @@ window.Share = (function () {
       canvasToBlob(current).then(function (blob) {
         var file = new File([blob], fname(), { type: 'image/png' });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          navigator.share({ files: [file], title: 'Meus palpites - Bolão Balera 2026', text: shareText(data) }).catch(function () {});
+          navigator.share({ files: [file], title: (ONE_GAME ? 'Meu palpite' : 'Meus palpites') + ' - Bolão Balera 2026', text: shareText(data) }).catch(function () {});
         } else {
           navigator.share({ title: 'Bolão Balera 2026', text: shareText(data), url: PALPITES_URL }).catch(function () {});
         }
